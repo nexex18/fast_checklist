@@ -5,32 +5,24 @@ from monsterui.all import *
 from pathlib import Path
 from datetime import datetime
 import argparse
-import sys
-import sqlite3
 
-# Add this near the top of your file, after imports
+# CLI Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-refresh', action='store_true', help='Refresh the database on startup')
 args = parser.parse_args()
 
-# Then modify your database initialization code
+# Database Setup
 DB_PATH = Path('data/checklists.db')
-
-# Make sure the data directory exists
 os.makedirs('data', exist_ok=True)
 
-# Only delete and recreate if -refresh flag is used
 if args.refresh and DB_PATH.exists():
     print("Refreshing database...")
     DB_PATH.unlink()
-    # Remove WAL files if they exist
-    wal = DB_PATH.parent / f"{DB_PATH.name}-wal"
-    shm = DB_PATH.parent / f"{DB_PATH.name}-shm"
-    if wal.exists(): wal.unlink()
-    if shm.exists(): shm.unlink()
+    for ext in ['-wal', '-shm']:
+        path = DB_PATH.parent / f"{DB_PATH.name}{ext}"
+        if path.exists(): path.unlink()
 
-
-# Setup tables configuration with explicit id column
+# Table Configuration
 table_config = {
     'checklists': {
         'id': int,
@@ -48,19 +40,15 @@ table_config = {
     }
 }
 
-# Create FastHTML app with SQLite database and unpack all returned values
+# FastHTML App Setup
 app, rt, checklists, items = fast_app(
-    str(DB_PATH),  # First positional argument
+    str(DB_PATH),
     checklists=table_config['checklists'],
     items=table_config['items'],
-    hdrs=Theme.blue.headers()  # keyword arguments at the end
+    hdrs=Theme.blue.headers()
 )
 
-
-# def format_date(date_str):
-#     dt = datetime.fromisoformat(date_str)
-#     return dt.strftime('%Y-%m-%d %H:%M')
-
+# UI Components
 def checklist_table():
     data = [{'Title': row.title, 'Description': row.description} 
             for row in checklists[0]()]
@@ -76,7 +64,6 @@ def checklist_table():
         header_cell_render=lambda v: Th(v.upper()),
         body_cell_render=body_render)
 
-
 def create_checklist_modal():
     return Modal(
         ModalTitle("Create New Checklist"),
@@ -86,12 +73,12 @@ def create_checklist_modal():
                 LabelTextArea("Description", id="description", placeholder="Description"),
                 action="/create",
                 method="POST",
-                id="new-checklist-form"  # Add form ID for reference
+                id="new-checklist-form"
             )
         ),
         footer=DivRAligned(
-            ModalCloseButton("Cancel", cls=ButtonT.default),  # Fixed cancel button
-            Button("Create", cls=ButtonT.primary, type="submit", form="new-checklist-form")  # Link button to form
+            ModalCloseButton("Cancel", cls=ButtonT.default),
+            Button("Create", cls=ButtonT.primary, type="submit", form="new-checklist-form")
         ),
         id='new-checklist-modal'
     )
@@ -113,13 +100,11 @@ def render_checklist_page(table):
         create_checklist_modal()
     )
 
-
+# Routes
 @rt('/')
 async def get(req):
-    lists = checklists[0]()
     table = checklist_table()
     return render_checklist_page(table)
-
 
 @rt('/create')
 async def post(req):
@@ -130,8 +115,7 @@ async def post(req):
         'created_at': datetime.now().isoformat()
     }
     checklists[0].insert(checklist)
-    return RedirectResponse('/', status_code=303)  # 303 See Other forces a GET request
-
+    return RedirectResponse('/', status_code=303)
 
 if __name__ == '__main__':
     serve()
