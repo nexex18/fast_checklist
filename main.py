@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 import argparse
 import json  # For handling reference_material JSON
-from fastcore.basics import AttrDict
+from fastcore.basics import AttrDict, patch
 
 
 import sqlite3
@@ -75,10 +75,10 @@ table_config = {
 
 
 # FastHTML App Setup
-app, rt, checklists, steps = fast_app(  # Changed 'items' to 'steps'
+app, rt, checklists, steps = fast_app(  
     str(DB_PATH),
     checklists=table_config['checklists'],
-    steps=table_config['steps'],  # Changed from 'items' to 'steps'
+    steps=table_config['steps'],  
     hdrs=Theme.blue.headers()
 )
 
@@ -101,11 +101,18 @@ def checklist_row(checklist):
                       'hx-push-url': 'true'
                   }),
                 A("Edit", cls='uk-link-text uk-margin-small-right'),
-                A("Delete", cls='uk-link-text uk-text-danger'),
+                A("Delete", 
+                  cls='uk-link-text uk-text-danger',
+                  **{
+                      'hx-delete': f'/checklist/{checklist.id}',
+                      'hx-confirm': 'Are you sure you want to delete this checklist?',
+                      'hx-target': '#main-content'
+                  }),
                 cls='uk-flex uk-flex-middle uk-flex-right'
             )
         )
     )
+
 
 # UI Components
 
@@ -255,7 +262,6 @@ def render_main_page():
         id="main-content"
     )
 
-
 # Routes
 @rt('/')
 async def get(req):
@@ -293,6 +299,35 @@ async def post(req):
 def get(req):
     checklist_id = int(req.path_params['checklist_id'])
     return render_checklist_page(checklist_id)  # Now passing the parameter
+
+
+from fastcore.basics import patch
+
+@patch
+def delete(self:Checklist):
+    with DBConnection() as cursor:
+        # First delete associated steps
+        cursor.execute("""
+            DELETE FROM steps 
+            WHERE checklist_id = ?
+        """, (self.id,))
+        
+        # Then delete the checklist
+        cursor.execute("""
+            DELETE FROM checklists 
+            WHERE id = ?
+        """, (self.id,))
+        
+        return cursor.rowcount > 0
+
+
+@rt('/checklist/{checklist_id}')
+async def delete(req):
+    checklist_id = int(req.path_params['checklist_id'])
+    checklist = get_checklist_with_steps(checklist_id)
+    if checklist:
+        checklist.delete()
+    return render_main_page()
 
 
 if __name__ == '__main__':
