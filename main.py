@@ -7,8 +7,8 @@ from datetime import datetime
 import argparse
 import json  # For handling reference_material JSON
 
-import sqlite3
 
+import sqlite3
 
 # CLI Arguments
 parser = argparse.ArgumentParser()
@@ -18,6 +18,19 @@ args = parser.parse_args()
 # Database Setup
 DB_PATH = Path('data/checklists.db')
 os.makedirs('data', exist_ok=True)
+
+class DBConnection:
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        
+    def __enter__(self):
+        self.conn = sqlite3.connect(self.db_path)
+        self.conn.row_factory = sqlite3.Row  # This allows column access by name
+        return self.conn.cursor()
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.conn.commit()
+        self.conn.close()
 
 if args.refresh and DB_PATH.exists():
     print("Refreshing database...")
@@ -127,10 +140,54 @@ def create_checklist_modal():
         id='new-checklist-modal'
     )
 
+def get_checklist_with_steps(checklist_id):
+    with DBConnection() as cursor:
+        # Get checklist details
+        cursor.execute("""
+            SELECT id, title, description, description_long, created_at 
+            FROM checklists WHERE id = ?
+        """, (checklist_id,))
+        checklist_row = cursor.fetchone()
+        
+        if not checklist_row:
+            return None
+            
+        # Get steps in same connection
+        cursor.execute("""
+            SELECT id, text, status, order_index, reference_material
+            FROM steps 
+            WHERE checklist_id = ?
+            ORDER BY order_index
+        """, (checklist_id,))
+        step_rows = cursor.fetchall()
+    
+    # Create the combined result
+    checklist = SimpleNamespace(
+        id=checklist_row['id'],
+        title=checklist_row['title'],
+        description=checklist_row['description'],
+        description_long=checklist_row['description_long'],
+        created_at=checklist_row['created_at'],
+        steps=[
+            SimpleNamespace(
+                id=row['id'],
+                text=row['text'],
+                status=row['status'],
+                order_index=row['order_index'],
+                reference_material=row['reference_material']
+            ) for row in step_rows
+        ]
+    )
+    
+    return checklist
+
+
 def render_checklist_page(checklist_id):
-    # Get the data
-    checklist = get_checklist(checklist_id)
-    steps = get_checklist_steps(checklist_id)
+    # Get the combined data using our new function
+    checklist = get_checklist_with_steps(checklist_id)
+    
+    if not checklist:
+        return Div("Checklist not found", cls="uk-alert uk-alert-danger")
     
     # Combine into a single view
     return Div(
@@ -144,52 +201,40 @@ def render_checklist_page(checklist_id):
         P(checklist.description, cls="uk-text-meta"),
         P(checklist.description_long) if checklist.description_long else "",
         
-        # Steps section
-        render_steps(steps),
+        # Steps section - now using checklist.steps directly
+        render_steps(checklist.steps),
         
         cls="uk-margin",
         id="main-content"
     )
 
-def get_checklist(checklist_id):
-    conn = sqlite3.connect('data/checklists.db')
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT id, title, description, description_long, created_at 
-        FROM checklists WHERE id = ?
-    """, (checklist_id,))
-    row = cursor.fetchone()
-    conn.close()
-    
-    if row:
-        return SimpleNamespace(
-            id=row[0],
-            title=row[1],
-            description=row[2],
-            description_long=row[3],
-            created_at=row[4]
-        )
-    return None
 
-def get_checklist_steps(checklist_id):
-    conn = sqlite3.connect('data/checklists.db')
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT id, text, status, order_index, reference_material
-        FROM steps 
-        WHERE checklist_id = ?
-        ORDER BY order_index
-    """, (checklist_id,))
-    rows = cursor.fetchall()
-    conn.close()
+def checklist_table():
+    with DBConnection() as cursor:
+        cursor.execute("""
+            SELECT id, title, description, description_long, created_at 
+            FROM checklists
+        """)
+        rows = cursor.fetchall()
     
-    return [SimpleNamespace(
-        id=row[0],
-        text=row[1],
-        status=row[2],
-        order_index=row[3],
-        reference_material=row[4]
+    data = [SimpleNamespace(
+        id=row['id'],
+        title=row['title'],
+        description=row['description'],
+        description_long=row['description_long'],
+        created_at=row['created_at']
     ) for row in rows]
+    
+    return Table(
+        Thead(
+            Tr(
+                Th("Checklist"),
+                Th("Actions", cls='uk-text-right')
+            )
+        ),
+        Tbody(*(checklist_row(checklist) for checklist in data)),
+        cls="uk-table uk-table-divider uk-table-hover uk-table-small"
+    )
 
 def render_steps(steps):
     return Div(
