@@ -8,7 +8,6 @@ import argparse
 import json  # For handling reference_material JSON
 from fastcore.basics import AttrDict, patch
 
-
 import sqlite3
 
 # CLI Arguments
@@ -140,7 +139,7 @@ def create_checklist_modal():
         ),
         footer=DivRAligned(
             ModalCloseButton("Cancel", cls=ButtonT.default),
-            Button("Create", cls=ButtonT.primary, type="submit", form="new-checklist-form")
+            Button("Save & Edit", cls=ButtonT.primary, type="submit", form="new-checklist-form")
         ),
         id='new-checklist-modal'
     )
@@ -428,26 +427,38 @@ async def post(req):
     form = await req.form()
     try:
         checklist = Checklist(
-            id=None,  # Database will auto-assign ID
+            id=None,
             title=form['title'],
             description=form.get('description', ''),
             description_long='',
             created_at=datetime.now().isoformat(),
             steps=[]
         )
-        # Convert AttrDict to dict for database insertion
         checklist_data = dict(checklist)
-        del checklist_data['steps']  # Remove steps as it's not a database field
-        del checklist_data['id']     # Remove id to let database auto-assign
+        del checklist_data['steps']
+        del checklist_data['id']
         
-        print("Checklist data to insert:", checklist_data)  # Debug print
-        result = checklists[0].insert(checklist_data)
-        print("Insert result:", result)  # Debug print
+        # Insert using DBConnection
+        with DBConnection() as cursor:
+            cursor.execute("""
+                INSERT INTO checklists (title, description, description_long, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (
+                checklist_data['title'],
+                checklist_data['description'],
+                checklist_data['description_long'],
+                checklist_data['created_at']
+            ))
+            cursor.execute("SELECT last_insert_rowid()")
+            new_id = cursor.fetchone()[0]
         
-        return RedirectResponse('/', status_code=303)
+        return RedirectResponse(f'/checklist/{new_id}/edit', status_code=303)
+            
     except Exception as e:
-        print(f"Error creating checklist: {e}")  # Debug print
+        print(f"Error creating checklist: {e}")
         raise
+
+
 
 
 
