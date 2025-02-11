@@ -1,11 +1,9 @@
 import os
 from fasthtml.common import *
 from fasthtml.common import RedirectResponse as redirect
-import mammoth
 from monsterui.all import *
 from pathlib import Path
 from datetime import datetime
-from httpx import get as xget, post as xpost
 import argparse
 import sys
 import sqlite3
@@ -32,13 +30,6 @@ if args.refresh and DB_PATH.exists():
     if shm.exists(): shm.unlink()
 
 
-# Define render function for checklists
-def render_checklist(o):
-    return ft('div',
-        ft('h3', o.title),
-        ft('p', o.description) if o.description else None
-    )
-
 # Setup tables configuration with explicit id column
 table_config = {
     'checklists': {
@@ -60,16 +51,15 @@ table_config = {
 # Create FastHTML app with SQLite database and unpack all returned values
 app, rt, checklists, items = fast_app(
     str(DB_PATH),  # First positional argument
-    render=render_checklist,
     checklists=table_config['checklists'],
     items=table_config['items'],
     hdrs=Theme.blue.headers()  # keyword arguments at the end
 )
 
 
-def format_date(date_str):
-    dt = datetime.fromisoformat(date_str)
-    return dt.strftime('%Y-%m-%d %H:%M')
+# def format_date(date_str):
+#     dt = datetime.fromisoformat(date_str)
+#     return dt.strftime('%Y-%m-%d %H:%M')
 
 def checklist_table():
     conn = sqlite3.connect('data/checklists.db')
@@ -109,7 +99,7 @@ def create_checklist_modal():
         id='new-checklist-modal'
     )
 
-def render_checklist_page(lists, table):
+def render_checklist_page(table):
     return ft('div',
         ft('div', 
             ft('div', 
@@ -132,10 +122,7 @@ def render_checklist_page(lists, table):
 async def get(req):
     lists = checklists[0]()
     table = checklist_table()
-    return render_checklist_page(lists, table)
-
-
-
+    return render_checklist_page(table)
 
 
 @rt('/create')
@@ -149,13 +136,6 @@ async def post(req):
     checklists[0].insert(checklist)
     return RedirectResponse('/', status_code=303)  # 303 See Other forces a GET request
 
-
-@rt('/toggle/{id:int}')
-async def post(req, id):
-    item = items[0][id]  # Get the item by id
-    new_status = 'completed' if item.status != 'completed' else 'pending'
-    items[0].update(id, status=new_status)
-    return ''  # Empty response since we're using HTMX
 
 if __name__ == '__main__':
     serve()
