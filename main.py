@@ -73,13 +73,16 @@ table_config = {
     }
 }
 
+hdrs = Theme.blue.headers() + [
+    '<script src="https://unpkg.com/htmx.org/dist/ext/sortable.js"></script>'
+]
 
 # FastHTML App Setup
 app, rt, checklists, steps = fast_app(  
     str(DB_PATH),
     checklists=table_config['checklists'],
     steps=table_config['steps'],  
-    hdrs=Theme.blue.headers()
+    hdrs=Theme.blue.headers() 
 )
 
 def checklist_row(checklist):
@@ -255,22 +258,64 @@ def checklist_table():
 
 def render_main_page():
     return Div(
-        # Header
+        Script(src="https://unpkg.com/htmx.org/dist/ext/sortable.js"),
+        Script(src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"),
+        # Rest of your existing render_main_page code...
         H1("My Checklists", cls="uk-heading-medium"),
-        # Add new checklist button
         Button("+ New Checklist", 
                cls="uk-button uk-button-primary uk-margin-bottom",
                **{'uk-toggle': 'target: #new-checklist-modal'}),
-        # List of checklists
         checklist_table(),
-        # Add the modal
         create_checklist_modal(),
         cls="uk-container uk-margin-top",
         id="main-content"
     )
 
+def render_new_step_modal(checklist_id, current_step_count):
+    return Modal(
+        ModalTitle("Add New Step"),
+        ModalBody(
+            Form(
+                LabelInput(label="Step Text", 
+                          id="step_text",
+                          placeholder="Enter step description",
+                          cls="uk-margin-small"),
+                LabelSelect(label="Status",  # Fixed: added 'label=' keyword
+                           id="step_status",
+                           options=['Not Started', 'In Progress', 'Completed'],
+                           value='Not Started',
+                           cls="uk-margin-small"),
+                LabelInput(label="Reference Link",
+                          id="step_ref",
+                          placeholder="Optional reference URL",
+                          cls="uk-margin-small"),
+                LabelInput(label="Position",
+                          id="step_position",
+                          type="number",
+                          value=str(current_step_count + 1),
+                          min="1",
+                          max=str(current_step_count + 1),
+                          cls="uk-margin-small"),
+                action=f"/checklist/{checklist_id}/step",
+                method="POST",
+                id="new-step-form"
+            )
+        ),
+        footer=DivRAligned(
+            ModalCloseButton("Cancel", cls=ButtonT.default),
+            Button("Add Step", 
+                  cls=ButtonT.primary, 
+                  type="submit",
+                  form="new-step-form")
+        ),
+        id='new-step-modal'
+    )
+
+
 def render_checklist_edit(checklist):
     return Div(
+        Script(src="https://unpkg.com/htmx.org/dist/ext/sortable.js"),
+        Script(src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"),
         # Header with back button
         Div(
             A("← Back", cls="uk-link-text", **{'hx-get': f'/checklist/{checklist.id}', 'hx-target': '#main-content'}),
@@ -278,7 +323,15 @@ def render_checklist_edit(checklist):
         ),
         # Edit form for checklist details
         Form(
-            H2("Edit Checklist", cls="uk-heading-small"),
+            # Title and Add button in same line
+            Div(
+                H2("Edit Checklist", cls="uk-heading-small uk-margin-remove"),
+                A("➕",
+                  cls="uk-link-muted uk-button uk-button-small",
+                  **{'uk-toggle': 'target: #new-step-modal'}),  # Updated to trigger modal
+                cls="uk-flex uk-flex-middle uk-flex-between"
+            ),
+            
             LabelInput("Title", 
                       id="title", 
                       value=checklist.title,
@@ -292,11 +345,25 @@ def render_checklist_edit(checklist):
                          value=checklist.description_long,
                          cls="uk-margin-small"),
             
-            # Steps section
+            # Steps section with sortable
             H3("Steps", cls="uk-heading-small uk-margin-top"),
             Div(*(
                 Div(
-                    LabelInput(label=f"Step {i+1}", 
+                    # Add drag handle and make sortable
+                    Div(
+                        Span("⋮⋮", cls="uk-margin-small-right drag-handle"),
+                        Span(f"Step {i+1}", cls="uk-form-label"),
+                        A("🗑️",
+                          cls="uk-link-danger uk-margin-small-left",
+                          **{
+                              'hx-delete': f'/checklist/{checklist.id}/step/{step.id}',
+                              'hx-confirm': 'Are you sure you want to delete this step?',
+                              'hx-target': '#main-content'
+                          }),
+                        cls="uk-flex uk-flex-middle",
+                        style="cursor: move"
+                    ),
+                    LabelInput(label="", 
                              id=f"step_{step.id}_text",
                              value=step.text),
                     Div(
@@ -312,10 +379,23 @@ def render_checklist_edit(checklist):
                         cls="uk-grid-small uk-child-width-1-2@s",
                         **{'uk-grid': ''}
                     ),
-                    cls="uk-margin-medium-bottom"
+                    cls="uk-margin-medium-bottom",
+                    **{
+                        'name': 'steps',
+                        'data-id': step.id
+                    }
                 )
                 for i, step in enumerate(checklist.steps)
-            )),
+            ),
+            **{
+                'id': 'sortable-steps',
+                'hx-ext': 'sortable',
+                'sortable-options': '{"animation": 150, "ghostClass": "uk-opacity-50", "dragClass": "uk-box-shadow-medium"}',
+                'hx-post': f'/checklist/{checklist.id}/reorder-steps',
+                'hx-trigger': 'end',
+                'hx-target': '#main-content',
+                'hx-include': '[name=steps]'
+            }),
             
             # Submit button
             DivRAligned(
@@ -329,6 +409,10 @@ def render_checklist_edit(checklist):
             id="edit-checklist-form",
             cls="uk-form-stacked"
         ),
+        
+        # Add the new step modal
+        render_new_step_modal(checklist.id, len(checklist.steps)),
+        
         cls="uk-margin",
         id="main-content"
     )
@@ -496,6 +580,77 @@ def get(req):
     if not checklist:
         return Div("Checklist not found", cls="uk-alert uk-alert-danger")
     return render_checklist_edit(checklist)
+
+### New Routes to handle checklist Edit Features
+@rt('/checklist/{checklist_id}/step', methods=['POST'])
+async def post(req):
+    checklist_id = int(req.path_params['checklist_id'])
+    form = await req.form()
+    
+    # Get form data
+    step_text = form.get('step_text', 'New Step')
+    step_status = form.get('step_status', 'Not Started')
+    step_ref = f'["{form.get("step_ref", "")}"]'  # Format for JSON storage
+    position = int(form.get('step_position', 0))
+    
+    with DBConnection() as cursor:
+        # If position specified, shift existing steps
+        if position:
+            cursor.execute("""
+                UPDATE steps 
+                SET order_index = order_index + 1
+                WHERE checklist_id = ? AND order_index >= ?
+            """, (checklist_id, position - 1))
+            
+            # Insert new step at specified position
+            cursor.execute("""
+                INSERT INTO steps (checklist_id, text, status, order_index, reference_material)
+                VALUES (?, ?, ?, ?, ?)
+            """, (checklist_id, step_text, step_status, position - 1, step_ref))
+        else:
+            # Add to end if no position specified
+            cursor.execute("""
+                SELECT COALESCE(MAX(order_index), -1) + 1
+                FROM steps WHERE checklist_id = ?
+            """, (checklist_id,))
+            next_order = cursor.fetchone()[0]
+            
+            cursor.execute("""
+                INSERT INTO steps (checklist_id, text, status, order_index, reference_material)
+                VALUES (?, ?, ?, ?, ?)
+            """, (checklist_id, step_text, step_status, next_order, step_ref))
+    
+    return render_checklist_edit(get_checklist_with_steps(checklist_id))
+
+
+@rt('/checklist/{checklist_id}/step/{step_id}', methods=['DELETE'])
+async def delete(req):
+    checklist_id = int(req.path_params['checklist_id'])
+    step_id = int(req.path_params['step_id'])
+    
+    with DBConnection() as cursor:
+        cursor.execute("DELETE FROM steps WHERE id = ? AND checklist_id = ?",
+                      (step_id, checklist_id))
+    
+    return render_checklist_edit(get_checklist_with_steps(checklist_id))
+
+@rt('/checklist/{checklist_id}/reorder-steps', methods=['POST'])
+async def post(req):
+    checklist_id = int(req.path_params['checklist_id'])
+    form = await req.form()
+    
+    # Get the new order from the form data
+    new_order = form.get('steps[]', '').split(',')
+    
+    with DBConnection() as cursor:
+        for i, step_id in enumerate(new_order):
+            cursor.execute("""
+                UPDATE steps 
+                SET order_index = ? 
+                WHERE id = ? AND checklist_id = ?
+            """, (i, int(step_id), checklist_id))
+    
+    return render_checklist_edit(get_checklist_with_steps(checklist_id))
 
 
 if __name__ == '__main__':
