@@ -100,7 +100,13 @@ def checklist_row(checklist):
                       'hx-target': '#main-content',
                       'hx-push-url': 'true'
                   }),
-                A("Edit", cls='uk-link-text uk-margin-small-right'),
+                A("Edit",
+                  cls='uk-link-text uk-margin-small-right',
+                  **{
+                      'hx-get': f'/checklist/{checklist.id}/edit',
+                      'hx-target': '#main-content',
+                      'hx-push-url': 'true'
+                  }),
                 A("Delete", 
                   cls='uk-link-text uk-text-danger',
                   **{
@@ -112,6 +118,7 @@ def checklist_row(checklist):
             )
         )
     )
+
 
 
 # UI Components
@@ -262,6 +269,71 @@ def render_main_page():
         id="main-content"
     )
 
+def render_checklist_edit(checklist):
+    return Div(
+        # Header with back button
+        Div(
+            A("← Back", cls="uk-link-text", **{'hx-get': f'/checklist/{checklist.id}', 'hx-target': '#main-content'}),
+            cls="uk-margin-bottom"
+        ),
+        # Edit form for checklist details
+        Form(
+            H2("Edit Checklist", cls="uk-heading-small"),
+            LabelInput("Title", 
+                      id="title", 
+                      value=checklist.title,
+                      cls="uk-margin-small"),
+            LabelTextArea("Description", 
+                         id="description",
+                         value=checklist.description,
+                         cls="uk-margin-small"),
+            LabelTextArea("Long Description", 
+                         id="description_long",
+                         value=checklist.description_long,
+                         cls="uk-margin-small"),
+            
+            # Steps section
+            H3("Steps", cls="uk-heading-small uk-margin-top"),
+            Div(*(
+                Div(
+                    LabelInput(label=f"Step {i+1}", 
+                             id=f"step_{step.id}_text",
+                             value=step.text),
+                    Div(
+                        LabelSelect(label="Status",
+                                  id=f"step_{step.id}_status",
+                                  options=['Not Started', 'In Progress', 'Completed'],
+                                  value=step.status,
+                                  cls="uk-width-1-2"),
+                        LabelInput(label="Reference",
+                                 id=f"step_{step.id}_ref",
+                                 value=step.reference_material.strip('"[]'),
+                                 cls="uk-width-1-2"),
+                        cls="uk-grid-small uk-child-width-1-2@s",
+                        **{'uk-grid': ''}
+                    ),
+                    cls="uk-margin-medium-bottom"
+                )
+                for i, step in enumerate(checklist.steps)
+            )),
+            
+            # Submit button
+            DivRAligned(
+                Button("Save Changes", 
+                       cls=ButtonT.primary,
+                       **{
+                           'hx-put': f'/checklist/{checklist.id}',
+                           'hx-target': '#main-content'
+                       })
+            ),
+            id="edit-checklist-form",
+            cls="uk-form-stacked"
+        ),
+        cls="uk-margin",
+        id="main-content"
+    )
+
+
 # Routes
 @rt('/')
 async def get(req):
@@ -328,6 +400,102 @@ async def delete(req):
     if checklist:
         checklist.delete()
     return render_main_page()
+
+
+@rt('/checklist/{checklist_id}', methods=['PUT'])
+async def put(req):
+    checklist_id = int(req.path_params['checklist_id'])
+    form = await req.form()
+    
+    # Get checklist
+    checklist = get_checklist_with_steps(checklist_id)
+    if not checklist:
+        return Div("Checklist not found", cls="uk-alert uk-alert-danger")
+    
+    # Update checklist details
+    result = checklist.update(
+        title=form.get('title'),
+        description=form.get('description'),
+        description_long=form.get('description_long')
+    )
+    
+    # Update steps
+    for step in checklist.steps:
+        step_result = checklist.update_step(
+            step_id=step.id,
+            text=form.get(f'step_{step.id}_text'),
+            status=form.get(f'step_{step.id}_status'),
+            reference_material=form.get(f'step_{step.id}_ref', '')
+        )
+        result &= step_result
+    
+    # Return to the checklist view
+    return render_checklist_page(checklist_id)
+
+@patch
+def update(self:Checklist, title=None, description=None, description_long=None):
+    """Update checklist details"""
+    with DBConnection() as cursor:
+        updates = []
+        params = []
+        if title is not None:
+            updates.append("title = ?")
+            params.append(title)
+        if description is not None:
+            updates.append("description = ?")
+            params.append(description)
+        if description_long is not None:
+            updates.append("description_long = ?")
+            params.append(description_long)
+            
+        if not updates:
+            return False
+            
+        query = f"""
+            UPDATE checklists 
+            SET {', '.join(updates)}
+            WHERE id = ?
+        """
+        params.append(self.id)
+        cursor.execute(query, params)
+        return cursor.rowcount > 0
+
+@patch
+def update_step(self:Checklist, step_id, text=None, status=None, reference_material=None):
+    """Update a step in the checklist"""
+    with DBConnection() as cursor:
+        updates = []
+        params = []
+        if text is not None:
+            updates.append("text = ?")
+            params.append(text)
+        if status is not None:
+            updates.append("status = ?")
+            params.append(status)
+        if reference_material is not None:
+            updates.append("reference_material = ?")
+            params.append(reference_material)
+            
+        if not updates:
+            return False
+            
+        query = f"""
+            UPDATE steps 
+            SET {', '.join(updates)}
+            WHERE id = ? AND checklist_id = ?
+        """
+        params.extend([step_id, self.id])
+        cursor.execute(query, params)
+        return cursor.rowcount > 0
+
+
+@rt('/checklist/{checklist_id}/edit')
+def get(req):
+    checklist_id = int(req.path_params['checklist_id'])
+    checklist = get_checklist_with_steps(checklist_id)
+    if not checklist:
+        return Div("Checklist not found", cls="uk-alert uk-alert-danger")
+    return render_checklist_edit(checklist)
 
 
 if __name__ == '__main__':
