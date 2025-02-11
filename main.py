@@ -62,12 +62,8 @@ app, rt, checklists, items = fast_app(
 #     return dt.strftime('%Y-%m-%d %H:%M')
 
 def checklist_table():
-    conn = sqlite3.connect('data/checklists.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT title, description FROM checklists")
-    data = [{'Title': row[0], 'Description': row[1]} 
-            for row in cursor.fetchall()]
-    conn.close()
+    data = [{'Title': row.title, 'Description': row.description} 
+            for row in checklists[0]()]
     
     header_data = ['Title', 'Description']
     
@@ -79,6 +75,7 @@ def checklist_table():
     return TableFromDicts(header_data, data, 
         header_cell_render=lambda v: Th(v.upper()),
         body_cell_render=body_render)
+
 
 def create_checklist_modal():
     return Modal(
@@ -100,23 +97,22 @@ def create_checklist_modal():
     )
 
 def render_checklist_page(table):
-    return ft('div',
-        ft('div', 
-            ft('div', 
-                ft('div',
-                    ft('button', "New Checklist", cls='uk-button uk-button-primary', 
-                       **{'uk-toggle': 'target: #new-checklist-modal'}),
-                    cls='uk-width-1-1'),
-                ft('div',
-                    ft('h2', "Checklists", cls='uk-heading-small'),
-                    cls='uk-width-1-1 uk-margin-small-top'),
-                ft('div', table, cls='uk-width-1-1'),
-                cls='uk-grid uk-grid-small'
+    return Container(
+        Grid(
+            Div(
+                Button("New Checklist", cls=ButtonT.primary, **{'uk-toggle': 'target: #new-checklist-modal'}),
+                cls='uk-width-1-1'
             ),
-            cls='uk-container'
+            Div(
+                H2("Checklists", cls='uk-heading-small'),
+                cls='uk-width-1-1 uk-margin-small-top'
+            ),
+            Div(table, cls='uk-width-1-1'),
+            cls='uk-grid-small'
         ),
         create_checklist_modal()
     )
+
 
 @rt('/')
 async def get(req):
