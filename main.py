@@ -85,17 +85,11 @@ def create_checklist_modal():
 
 def render_checklist_page(table):
     return Container(
-        Grid(
-            Div(
-                Button("New Checklist", cls=ButtonT.primary, **{'uk-toggle': 'target: #new-checklist-modal'}),
-                cls='uk-width-1-1'
-            ),
-            Div(
-                H2("Checklists", cls='uk-heading-small'),
-                cls='uk-width-1-1 uk-margin-small-top'
-            ),
-            Div(table, cls='uk-width-1-1'),
-            cls='uk-grid-small'
+        Div(
+            Button("New Checklist", cls=ButtonT.primary, **{'uk-toggle': 'target: #new-checklist-modal'}),
+            H2("Checklists", cls='uk-heading-small uk-margin-top'),
+            table,
+            cls='uk-margin'
         ),
         create_checklist_modal()
     )
