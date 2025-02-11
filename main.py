@@ -5,6 +5,8 @@ from monsterui.all import *
 from pathlib import Path
 from datetime import datetime
 import argparse
+import json  # For handling reference_material JSON
+
 
 # CLI Arguments
 parser = argparse.ArgumentParser()
@@ -22,29 +24,33 @@ if args.refresh and DB_PATH.exists():
         path = DB_PATH.parent / f"{DB_PATH.name}{ext}"
         if path.exists(): path.unlink()
 
-# Table Configuration
+# Updated table configuration
 table_config = {
     'checklists': {
         'id': int,
         'title': str,
         'description': str,
+        'description_long': str,
         'created_at': str,
         'pk': 'id'
     },
-    'items': {
+    'steps': {
         'id': int,
         'checklist_id': int,
         'text': str,
         'status': str,
+        'order_index': int,
+        'reference_material': str,  # Will store URLs as JSON string
         'pk': 'id'
     }
 }
 
+
 # FastHTML App Setup
-app, rt, checklists, items = fast_app(
+app, rt, checklists, steps = fast_app(  # Changed 'items' to 'steps'
     str(DB_PATH),
     checklists=table_config['checklists'],
-    items=table_config['items'],
+    steps=table_config['steps'],  # Changed from 'items' to 'steps'
     hdrs=Theme.blue.headers()
 )
 
