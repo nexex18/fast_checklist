@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime
 import argparse
 import json  # For handling reference_material JSON
+from fastcore.basics import AttrDict
 
 
 import sqlite3
@@ -18,6 +19,13 @@ args = parser.parse_args()
 # Database Setup
 DB_PATH = Path('data/checklists.db')
 os.makedirs('data', exist_ok=True)
+
+if args.refresh and DB_PATH.exists():
+    print("Refreshing database...")
+    DB_PATH.unlink()
+    for ext in ['-wal', '-shm']:
+        path = DB_PATH.parent / f"{DB_PATH.name}{ext}"
+        if path.exists(): path.unlink()
 
 class DBConnection:
     def __init__(self, db_path=DB_PATH):
@@ -32,12 +40,17 @@ class DBConnection:
         self.conn.commit()
         self.conn.close()
 
-if args.refresh and DB_PATH.exists():
-    print("Refreshing database...")
-    DB_PATH.unlink()
-    for ext in ['-wal', '-shm']:
-        path = DB_PATH.parent / f"{DB_PATH.name}{ext}"
-        if path.exists(): path.unlink()
+class Checklist(AttrDict):
+    def __init__(self, id, title, description, description_long='', created_at=None, steps=None):
+        super().__init__(
+            id=id,
+            title=title,
+            description=description,
+            description_long=description_long,
+            created_at=created_at,
+            steps=steps or []
+        )
+
 
 # Updated table configuration
 table_config = {
@@ -95,31 +108,6 @@ def checklist_row(checklist):
     )
 
 # UI Components
-def checklist_table():
-    conn = sqlite3.connect('data/checklists.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, title, description, description_long, created_at FROM checklists")
-    rows = cursor.fetchall()
-    conn.close()
-    
-    data = [SimpleNamespace(
-        id=row[0],
-        title=row[1],
-        description=row[2],
-        description_long=row[3],
-        created_at=row[4]
-    ) for row in rows]
-    
-    return Table(
-        Thead(
-            Tr(
-                Th("Checklist"),
-                Th("Actions", cls='uk-text-right')
-            )
-        ),
-        Tbody(*(checklist_row(checklist) for checklist in data)),
-        cls="uk-table uk-table-divider uk-table-hover uk-table-small"
-    )
 
 def create_checklist_modal():
     return Modal(
@@ -142,7 +130,6 @@ def create_checklist_modal():
 
 def get_checklist_with_steps(checklist_id):
     with DBConnection() as cursor:
-        # Get checklist details
         cursor.execute("""
             SELECT id, title, description, description_long, created_at 
             FROM checklists WHERE id = ?
@@ -152,7 +139,6 @@ def get_checklist_with_steps(checklist_id):
         if not checklist_row:
             return None
             
-        # Get steps in same connection
         cursor.execute("""
             SELECT id, text, status, order_index, reference_material
             FROM steps 
@@ -161,26 +147,42 @@ def get_checklist_with_steps(checklist_id):
         """, (checklist_id,))
         step_rows = cursor.fetchall()
     
-    # Create the combined result
-    checklist = SimpleNamespace(
+    # Create the checklist using our new class
+    return Checklist(
         id=checklist_row['id'],
         title=checklist_row['title'],
         description=checklist_row['description'],
         description_long=checklist_row['description_long'],
         created_at=checklist_row['created_at'],
-        steps=[
-            SimpleNamespace(
-                id=row['id'],
-                text=row['text'],
-                status=row['status'],
-                order_index=row['order_index'],
-                reference_material=row['reference_material']
-            ) for row in step_rows
-        ]
+        steps=[AttrDict(
+            id=row['id'],
+            text=row['text'],
+            status=row['status'],
+            order_index=row['order_index'],
+            reference_material=row['reference_material']
+        ) for row in step_rows]
     )
     
-    return checklist
 
+def render_steps(steps):
+    return Div(
+        H3("Steps", cls="uk-heading-small uk-margin-top"),
+        Ul(*(
+            Li(
+                Div(
+                    P(
+                        Span(step.text, cls="uk-text-emphasis"),
+                        Span(f" ({step.status})", cls="uk-text-muted uk-text-small"),
+                        cls="uk-margin-small-bottom"
+                    ),
+                    P(A("Reference", href=step.reference_material.strip('"[]'))) 
+                    if step.reference_material and step.reference_material != '[]' 
+                    else "",
+                    cls="uk-margin-small"
+                )
+            ) for step in steps
+        ), cls="uk-list uk-list-divider")
+    )
 
 def render_checklist_page(checklist_id):
     # Get the combined data using our new function
@@ -217,7 +219,7 @@ def checklist_table():
         """)
         rows = cursor.fetchall()
     
-    data = [SimpleNamespace(
+    data = [Checklist(
         id=row['id'],
         title=row['title'],
         description=row['description'],
@@ -236,25 +238,6 @@ def checklist_table():
         cls="uk-table uk-table-divider uk-table-hover uk-table-small"
     )
 
-def render_steps(steps):
-    return Div(
-        H3("Steps", cls="uk-heading-small uk-margin-top"),
-        Ul(*(
-            Li(
-                Div(
-                    P(
-                        Span(step.text, cls="uk-text-emphasis"),
-                        Span(f" ({step.status})", cls="uk-text-muted uk-text-small"),
-                        cls="uk-margin-small-bottom"
-                    ),
-                    P(A("Reference", href=step.reference_material.strip('"[]'))) 
-                    if step.reference_material and step.reference_material != '[]' 
-                    else "",
-                    cls="uk-margin-small"
-                )
-            ) for step in steps
-        ), cls="uk-list uk-list-divider")
-    )
 
 def render_main_page():
     return Div(
@@ -278,18 +261,32 @@ def render_main_page():
 async def get(req):
     return render_main_page()
 
-
 @rt('/create')
 async def post(req):
     form = await req.form()
-    checklist = {
-        'title': form['title'],
-        'description': form.get('description', ''),
-        'description_long': '',  # Added this field
-        'created_at': datetime.now().isoformat()
-    }
-    checklists[0].insert(checklist)
-    return RedirectResponse('/', status_code=303)
+    try:
+        checklist = Checklist(
+            id=None,  # Database will auto-assign ID
+            title=form['title'],
+            description=form.get('description', ''),
+            description_long='',
+            created_at=datetime.now().isoformat(),
+            steps=[]
+        )
+        # Convert AttrDict to dict for database insertion
+        checklist_data = dict(checklist)
+        del checklist_data['steps']  # Remove steps as it's not a database field
+        del checklist_data['id']     # Remove id to let database auto-assign
+        
+        print("Checklist data to insert:", checklist_data)  # Debug print
+        result = checklists[0].insert(checklist_data)
+        print("Insert result:", result)  # Debug print
+        
+        return RedirectResponse('/', status_code=303)
+    except Exception as e:
+        print(f"Error creating checklist: {e}")  # Debug print
+        raise
+
 
 
 @rt('/checklist/{checklist_id}')
