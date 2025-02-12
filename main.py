@@ -2,13 +2,15 @@ import os
 from fasthtml.common import *
 from fasthtml.common import RedirectResponse as redirect
 from monsterui.all import *
-from pathlib import Path
 from datetime import datetime
 import argparse
 import json  # For handling reference_material JSON
 from fastcore.basics import AttrDict, patch
+from instance_functions import (update_instance_step_status, get_instance_step, render_instance_step, render_instance_view_two, render_instances, render_instance_view, get_instance_with_steps, get_filtered_instances,create_new_instance)
 
+from db_connection import DBConnection
 import sqlite3
+from pathlib import Path
 
 # CLI Arguments
 parser = argparse.ArgumentParser()
@@ -26,18 +28,6 @@ if args.refresh and DB_PATH.exists():
         path = DB_PATH.parent / f"{DB_PATH.name}{ext}"
         if path.exists(): path.unlink()
 
-class DBConnection:
-    def __init__(self, db_path=DB_PATH):
-        self.db_path = db_path
-        
-    def __enter__(self):
-        self.conn = sqlite3.connect(self.db_path)
-        self.conn.row_factory = sqlite3.Row  # This allows column access by name
-        return self.conn.cursor()
-        
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.conn.commit()
-        self.conn.close()
 
 class Checklist(AttrDict):
     def __init__(self, id, title, description, description_long='', created_at=None, steps=None):
@@ -49,7 +39,6 @@ class Checklist(AttrDict):
             created_at=created_at,
             steps=steps or []
         )
-
 
 # Updated table configuration
 table_config = {
@@ -81,8 +70,11 @@ app, rt, checklists, steps = fast_app(
     str(DB_PATH),
     checklists=table_config['checklists'],
     steps=table_config['steps'],  
-    hdrs=Theme.blue.headers() 
+    hdrs=Theme.blue.headers(), 
+    live=True
 )
+
+# UI Components
 
 def checklist_row(checklist):
     return Tr(
@@ -110,20 +102,24 @@ def checklist_row(checklist):
                       'hx-push-url': 'true'
                   }),
                 A("Delete", 
-                  cls='uk-link-text uk-text-danger',
+                  cls='uk-link-text uk-text-danger uk-margin-right',
                   **{
                       'hx-delete': f'/checklist/{checklist.id}',
                       'hx-confirm': 'Are you sure you want to delete this checklist?',
                       'hx-target': '#main-content'
+                  }),
+                A("Instances",
+                  cls='uk-link-text uk-text-success',
+                  **{
+                      'hx-get': f'/instances/{checklist.id}',
+                      'hx-target': '#main-content',
+                      'hx-push-url': 'true'
                   }),
                 cls='uk-flex uk-flex-middle uk-flex-right'
             )
         )
     )
 
-
-
-# UI Components
 
 def create_checklist_modal():
     return Modal(
@@ -179,7 +175,6 @@ def get_checklist_with_steps(checklist_id):
         ) for row in step_rows]
     )
     
-
 def render_steps(steps):
     return Div(
         H3("Steps", cls="uk-heading-small uk-margin-top"),
@@ -226,7 +221,6 @@ def render_checklist_page(checklist_id):
         id="main-content"
     )
 
-
 def checklist_table():
     with DBConnection() as cursor:
         cursor.execute("""
@@ -253,7 +247,6 @@ def checklist_table():
         Tbody(*(checklist_row(checklist) for checklist in data)),
         cls="uk-table uk-table-divider uk-table-hover uk-table-small"
     )
-
 
 def render_main_page():
     return Div(
@@ -309,7 +302,6 @@ def render_new_step_modal(checklist_id, current_step_count):
         ),
         id='new-step-modal'
     )
-
 
 def render_checklist_edit(checklist):
     return Div(
@@ -416,6 +408,99 @@ def render_checklist_edit(checklist):
         id="main-content"
     )
 
+############ Functions to support Instances Start
+def get_instance_with_steps(instance_id):
+    """Get a complete instance with all its steps and related information"""
+    with DBConnection() as cursor:
+        # Get instance details
+        cursor.execute("""
+            SELECT ci.*, c.title as checklist_title, c.id as checklist_id
+            FROM checklist_instances ci
+            JOIN checklists c ON ci.checklist_id = c.id
+            WHERE ci.id = ?
+        """, (instance_id,))
+        instance = cursor.fetchone()
+        
+        if not instance:
+            return None
+            
+        # Get steps with their original text and current status
+        cursor.execute("""
+            SELECT 
+                i_steps.id as instance_step_id,
+                i_steps.status,
+                i_steps.notes,
+                i_steps.updated_at,
+                s.text as step_text,
+                s.reference_material,
+                s.order_index
+            FROM instance_steps i_steps
+            JOIN steps s ON i_steps.step_id = s.id
+            WHERE i_steps.instance_id = ?
+            ORDER BY s.order_index
+        """, (instance_id,))
+        steps = cursor.fetchall()
+        
+        return AttrDict(
+            id=instance['id'],
+            checklist_id=instance['checklist_id'],  # Added this line
+            name=instance['name'],
+            description=instance['description'],
+            status=instance['status'],
+            created_at=instance['created_at'],
+            target_date=instance['target_date'],
+            checklist_title=instance['checklist_title'],
+            steps=[AttrDict(dict(step)) for step in steps]
+        )
+
+def render_instance_view(instance_id):
+    """Render a single instance view with basic step status management"""
+    instance = get_instance_with_steps(instance_id)
+    if not instance:
+        return Div("Instance not found", cls="uk-alert uk-alert-danger")
+    
+    return Div(
+        # Header with instance info and parent checklist link
+        Div(
+            A("← Back to Checklist", 
+              cls="uk-link-text", 
+              **{'hx-get': f'/checklist/{instance.checklist_id}', 
+                 'hx-target': '#main-content'}),
+            H2(instance.name, cls="uk-heading-small uk-margin-remove-bottom"),
+            P(f"From checklist: {instance.checklist_title}", 
+              cls="uk-text-meta uk-margin-remove-top"),
+            cls="uk-margin-bottom"
+        ),
+        
+        # Steps list
+        Div(*(
+            Div(
+                # Step text and status in a flex container
+                Div(
+                    P(step.step_text, cls="uk-margin-remove uk-flex-1"),
+                    Select(
+                        Option("Not Started", selected=step.status=="Not Started"),
+                        Option("In Progress", selected=step.status=="In Progress"),
+                        Option("Completed", selected=step.status=="Completed"),
+                        cls="uk-select uk-form-small uk-width-small",
+                        **{
+                            'hx-put': f'/instance-step/{step.instance_step_id}/status',
+                            'hx-target': 'closest div'
+                        }
+                    ),
+                    cls="uk-flex uk-flex-middle uk-flex-between"
+                ),
+                cls="uk-margin-medium-bottom uk-padding-small uk-box-shadow-small"
+            )
+            for step in instance.steps
+        )),
+        
+        id="main-content",
+        cls="uk-container uk-margin-top"
+    )
+
+
+############ Functions to support Instances End
 
 # Routes
 @rt('/')
@@ -458,17 +543,10 @@ async def post(req):
         print(f"Error creating checklist: {e}")
         raise
 
-
-
-
-
 @rt('/checklist/{checklist_id}')
 def get(req):
     checklist_id = int(req.path_params['checklist_id'])
     return render_checklist_page(checklist_id)  # Now passing the parameter
-
-
-from fastcore.basics import patch
 
 @patch
 def delete(self:Checklist):
@@ -487,7 +565,6 @@ def delete(self:Checklist):
         
         return cursor.rowcount > 0
 
-
 @rt('/checklist/{checklist_id}')
 async def delete(req):
     checklist_id = int(req.path_params['checklist_id'])
@@ -495,7 +572,6 @@ async def delete(req):
     if checklist:
         checklist.delete()
     return render_main_page()
-
 
 @rt('/checklist/{checklist_id}', methods=['PUT'])
 async def put(req):
@@ -583,7 +659,6 @@ def update_step(self:Checklist, step_id, text=None, status=None, reference_mater
         cursor.execute(query, params)
         return cursor.rowcount > 0
 
-
 @rt('/checklist/{checklist_id}/edit')
 def get(req):
     checklist_id = int(req.path_params['checklist_id'])
@@ -592,7 +667,7 @@ def get(req):
         return Div("Checklist not found", cls="uk-alert uk-alert-danger")
     return render_checklist_edit(checklist)
 
-### New Routes to handle checklist Edit Features
+### Routes to handle checklist Edit Features
 @rt('/checklist/{checklist_id}/step', methods=['POST'])
 async def post(req):
     checklist_id = int(req.path_params['checklist_id'])
@@ -633,7 +708,6 @@ async def post(req):
     
     return render_checklist_edit(get_checklist_with_steps(checklist_id))
 
-
 @rt('/checklist/{checklist_id}/step/{step_id}', methods=['DELETE'])
 async def delete(req):
     checklist_id = int(req.path_params['checklist_id'])
@@ -663,6 +737,41 @@ async def post(req):
     
     return render_checklist_edit(get_checklist_with_steps(checklist_id))
 
+### Instance related routes
+@rt('/instances/{checklist_id}')
+def get(req):
+    checklist_id = int(req.path_params['checklist_id'])
+    return render_instances(checklist_id=checklist_id)
+
+@rt('/instance/{instance_id}')
+def get(req):
+    instance_id = int(req.path_params['instance_id'])
+    return render_instance_view_two(instance_id)
+
+@rt('/instance/create')
+async def post(req):
+    form = await req.form()
+    checklist_id = int(form['checklist_id'])
+    instance_id = create_new_instance(
+        checklist_id=checklist_id,
+        name=form['name'],
+        description=form.get('description'),
+        target_date=form.get('target_date')
+    )
+    return render_instances(checklist_id=checklist_id)
+
+@rt('/instance-step/{step_id}/status', methods=['PUT'])
+async def put(req):
+    step_id = int(req.path_params['step_id'])
+    form = await req.form()
+    new_status = form.get('status')
+    
+    if update_instance_step_status(step_id, new_status):
+        step = get_instance_step(step_id)
+        if step:
+            return render_instance_step(step)
+    
+    return "Error updating step status", 400
 
 if __name__ == '__main__':
     serve()
