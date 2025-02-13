@@ -79,10 +79,10 @@ def render_step_item(step, checklist_id, step_number):
         cls="uk-padding-small uk-margin-small uk-box-shadow-small",
         **{
             'data-id': step.id,
-            'name': 'steps',
-            ##'value': step.id # This was a suggested add, but not sure if it's needed
+            'name': 'steps'
         }
     )
+
 
 ## After making many changes to render_sortable_steps it's still not working
 ## This is the current state. 
@@ -91,12 +91,12 @@ def render_sortable_steps(checklist):
         H3("Steps", cls="uk-heading-small uk-margin-top"),
         Ul(*(
             Li(
-                step.text,
+                render_step_item(step, checklist.id, idx+1),
                 Hidden(name="id", value=step.id),
                 id=f'step-{step.id}',
                 cls="uk-padding-small uk-margin-small uk-box-shadow-small"
             )
-            for step in checklist.steps
+            for idx, step in enumerate(checklist.steps)
         ), cls='sortable'),
         id='steps-list',
         hx_post=f'/checklist/{checklist.id}/reorder-steps',

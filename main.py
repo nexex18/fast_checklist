@@ -583,6 +583,7 @@ async def delete(req):
     
     return render_checklist_edit(get_checklist_with_steps(checklist_id))
 
+# Route handler for reordering (for completeness)
 @rt('/checklist/{checklist_id}/reorder-steps', methods=['POST'])
 async def post(req, id:list[int]):
     checklist_id = int(req.path_params['checklist_id'])
@@ -593,26 +594,23 @@ async def post(req, id:list[int]):
     # Update order_index for each step
     with DBConnection() as cursor:
         for i, step_id in enumerate(id):
-            # print(f"Setting step {step_id} to order_index {i}")
             cursor.execute("""
                 UPDATE steps 
                 SET order_index = ? 
                 WHERE id = ? AND checklist_id = ?
             """, (i, step_id, checklist_id))
-            # print(f"Rows affected: {cursor.rowcount}")
     
     # Get updated checklist and return just the sorted list
     checklist = get_checklist_with_steps(checklist_id)
     return Ul(*(
         Li(
-            step.text,
+            render_step_item(step, checklist_id, idx+1),
             Hidden(name="id", value=step.id),
             id=f'step-{step.id}',
             cls="uk-padding-small uk-margin-small uk-box-shadow-small"
         )
-        for step in checklist.steps
+        for idx, step in enumerate(checklist.steps)
     ), cls='sortable')
-
 
 
 ### Instance related routes
