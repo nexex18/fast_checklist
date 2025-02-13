@@ -87,32 +87,21 @@ def render_step_item(step, checklist_id, step_number):
 ## After making many changes to render_sortable_steps it's still not working
 ## This is the current state. 
 def render_sortable_steps(checklist):
-    return Div(
+    return Form(
         H3("Steps", cls="uk-heading-small uk-margin-top"),
-        # Keep test button
-        Button("Test Reorder", 
-               cls="uk-button uk-button-small uk-button-primary",
-               **{
-                   'hx-post': f'/checklist/{checklist.id}/reorder-steps',
-                   'hx-target': '#main-content',
-                   'hx-vals': '{"step_order[]": [47, 49, 43, 45, 48, 46, 44]}'
-               }),
-        Div(*(
-            render_step_item(step, checklist.id, i+1)
-            for i, step in enumerate(checklist.steps)
-        ),
-        id='sortable-steps',
-        cls="sortable",
-        **{
-            'hx-ext': 'sortable',
-            #'hx-post': f'/checklist/{checklist.id}/reorder-steps',
-            'hx-trigger': 'end',
-            'hx-target': '#main-content',
-            'data-checklist': checklist.id,
-            'sortable-data': 'step_order[]'
-        })
+        Ul(*(
+            Li(
+                step.text,
+                Hidden(name="id", value=step.id),
+                id=f'step-{step.id}',
+                cls="uk-padding-small uk-margin-small uk-box-shadow-small"
+            )
+            for step in checklist.steps
+        ), cls='sortable'),
+        id='steps-list',
+        hx_post=f'/checklist/{checklist.id}/reorder-steps',
+        hx_trigger="end"
     )
-
 
 
 def render_submit_button(checklist_id):
@@ -208,3 +197,6 @@ def update_steps_order(checklist_id: int, step_ids: list):
                 WHERE id = ? AND checklist_id = ?
             """, (i, int(step_id), checklist_id))
     return True
+
+
+

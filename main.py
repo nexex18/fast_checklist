@@ -72,19 +72,14 @@ table_config = {
     }
 }
 
-hdrs = Theme.blue.headers() + [
-    Script(src="https://unpkg.com/htmx.org/dist/ext/sortable.js"),
-    Script(src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js")
-]
 
 app, rt, checklists, steps = fast_app(  
     str(DB_PATH),
     checklists=table_config['checklists'],
     steps=table_config['steps'],  
-    hdrs=hdrs, 
+    hdrs=(SortableJS('.sortable'), Theme.blue.headers()), 
     live=True
 )
-
 
 
 # UI Components
@@ -589,28 +584,34 @@ async def delete(req):
     return render_checklist_edit(get_checklist_with_steps(checklist_id))
 
 @rt('/checklist/{checklist_id}/reorder-steps', methods=['POST'])
-async def post(req):
+async def post(req, id:list[int]):
     checklist_id = int(req.path_params['checklist_id'])
-    form = await req.form()
     
-    print("=== Reorder Steps Debug ===")
-    print(f"Checklist ID: {checklist_id}")
-    print("Raw form data received:", dict(form))
+    print(f"Reordering steps for checklist {checklist_id}")
+    print(f"New order (step IDs): {id}")
     
-    # Get the actual order from the form data
-    step_order = form.getlist('step_order[]')
-    print("Step order from form:", step_order)
+    # Update order_index for each step
+    with DBConnection() as cursor:
+        for i, step_id in enumerate(id):
+            # print(f"Setting step {step_id} to order_index {i}")
+            cursor.execute("""
+                UPDATE steps 
+                SET order_index = ? 
+                WHERE id = ? AND checklist_id = ?
+            """, (i, step_id, checklist_id))
+            # print(f"Rows affected: {cursor.rowcount}")
     
-    if step_order:
-        # Convert strings to integers
-        step_order = [int(id) for id in step_order]
-        print("Processed step order:", step_order)
-        update_steps_order(checklist_id, step_order)
-        print("Steps reordered successfully")
-    else:
-        print("No step IDs received")
-    
-    return render_checklist_edit(get_checklist_with_steps(checklist_id))
+    # Get updated checklist and return just the sorted list
+    checklist = get_checklist_with_steps(checklist_id)
+    return Ul(*(
+        Li(
+            step.text,
+            Hidden(name="id", value=step.id),
+            id=f'step-{step.id}',
+            cls="uk-padding-small uk-margin-small uk-box-shadow-small"
+        )
+        for step in checklist.steps
+    ), cls='sortable')
 
 
 
