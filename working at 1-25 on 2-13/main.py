@@ -72,18 +72,15 @@ table_config = {
     }
 }
 
-hdrs = Theme.blue.headers() + [
-    '<script src="https://unpkg.com/htmx.org/dist/ext/sortable.js"></script>'
-]
 
-# FastHTML App Setup
 app, rt, checklists, steps = fast_app(  
     str(DB_PATH),
     checklists=table_config['checklists'],
     steps=table_config['steps'],  
-    hdrs=Theme.blue.headers(), 
+    hdrs=(SortableJS('.sortable'), Theme.blue.headers()), 
     live=True
 )
+
 
 # UI Components
 
@@ -586,22 +583,34 @@ async def delete(req):
     
     return render_checklist_edit(get_checklist_with_steps(checklist_id))
 
+# Route handler for reordering (for completeness)
 @rt('/checklist/{checklist_id}/reorder-steps', methods=['POST'])
-async def post(req):
+async def post(req, id:list[int]):
     checklist_id = int(req.path_params['checklist_id'])
-    form = await req.form()
     
-    print("DEBUG - Received form data:", dict(form))
+    print(f"Reordering steps for checklist {checklist_id}")
+    print(f"New order (step IDs): {id}")
     
-    # Get ordered step IDs from the form data
-    step_ids = [int(id) for id in form.getlist('step_order[]')]
+    # Update order_index for each step
+    with DBConnection() as cursor:
+        for i, step_id in enumerate(id):
+            cursor.execute("""
+                UPDATE steps 
+                SET order_index = ? 
+                WHERE id = ? AND checklist_id = ?
+            """, (i, step_id, checklist_id))
     
-    print("DEBUG - Processed step IDs:", step_ids)
-    
-    if step_ids:
-        update_steps_order(checklist_id, step_ids)
-    
-    return render_checklist_edit(get_checklist_with_steps(checklist_id))
+    # Get updated checklist and return just the sorted list
+    checklist = get_checklist_with_steps(checklist_id)
+    return Ul(*(
+        Li(
+            render_step_item(step, checklist_id, idx+1),
+            Hidden(name="id", value=step.id),
+            id=f'step-{step.id}',
+            cls="uk-padding-small uk-margin-small uk-box-shadow-small"
+        )
+        for idx, step in enumerate(checklist.steps)
+    ), cls='sortable')
 
 
 ### Instance related routes

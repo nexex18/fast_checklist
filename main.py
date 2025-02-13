@@ -16,7 +16,10 @@ from checklist_edit import (
     render_sortable_steps,
     render_step_item,
     render_submit_button,
-    update_steps_order
+    update_steps_order,
+    db_update_step,
+    get_step,
+    render_step_text
 )
 
 from db_connection import DBConnection
@@ -611,6 +614,65 @@ async def post(req, id:list[int]):
         )
         for idx, step in enumerate(checklist.steps)
     ), cls='sortable')
+
+
+
+
+@rt('/checklist/{checklist_id}/step/{step_id}', methods=['PUT'])
+async def put(req):
+    """Handle individual step updates (text or reference changes)"""
+    checklist_id = int(req.path_params['checklist_id'])
+    step_id = int(req.path_params['step_id'])
+    form = await req.form()
+    
+    # Process form data
+    updates = {}
+    if 'step_text' in form:
+        updates['text'] = form['step_text']
+    if 'reference_material' in form:
+        updates['reference_material'] = f'["{form["reference_material"]}"]'
+    
+    # Update and get refreshed step
+    step = update_step(checklist_id, step_id, **updates)
+    if not step:
+        return "No updates provided", 400
+        
+    # Return just the updated item
+    return render_step_item(step, checklist_id, step.order_index + 1)
+
+
+@rt('/checklist/{checklist_id}/step/{step_id}', methods=['PUT'])
+async def put(req):
+    """Handle individual step updates (text or reference changes)"""
+    checklist_id = int(req.path_params['checklist_id'])
+    step_id = int(req.path_params['step_id'])
+    form = await req.form()
+    
+    print(f"Raw form data: {dict(form)}")  # Debug log
+    
+    # Verify we're updating the correct step
+    form_step_id = form.get('step_id')
+    if form_step_id and int(form_step_id) != step_id:
+        print(f"ID mismatch: form={form_step_id}, url={step_id}")
+        return "Invalid step ID", 400
+    
+    # Process form data
+    updates = {}
+    if 'step_text' in form:
+        new_text = form['step_text'].strip()
+        if new_text != '':  # Only update if there's actual text
+            updates['text'] = new_text
+            
+    print(f"Processing updates: {updates}")  # Debug log
+    
+    # Update and get refreshed step
+    step = db_update_step(checklist_id, step_id, **updates)
+    if not step:
+        return "No updates provided", 400
+    
+    print(f"Updated step: {step}")  # Debug log
+    return render_step_text(step, checklist_id)
+
 
 
 ### Instance related routes
