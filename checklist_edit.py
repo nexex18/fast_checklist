@@ -79,13 +79,24 @@ def render_step_item(step, checklist_id, step_number):
         cls="uk-padding-small uk-margin-small uk-box-shadow-small",
         **{
             'data-id': step.id,
-            'name': 'steps'
+            'name': 'steps',
+            ##'value': step.id # This was a suggested add, but not sure if it's needed
         }
     )
 
+## After making many changes to render_sortable_steps it's still not working
+## This is the current state. 
 def render_sortable_steps(checklist):
     return Div(
         H3("Steps", cls="uk-heading-small uk-margin-top"),
+        # Keep test button
+        Button("Test Reorder", 
+               cls="uk-button uk-button-small uk-button-primary",
+               **{
+                   'hx-post': f'/checklist/{checklist.id}/reorder-steps',
+                   'hx-target': '#main-content',
+                   'hx-vals': '{"step_order[]": [47, 49, 43, 45, 48, 46, 44]}'
+               }),
         Div(*(
             render_step_item(step, checklist.id, i+1)
             for i, step in enumerate(checklist.steps)
@@ -93,24 +104,15 @@ def render_sortable_steps(checklist):
         id='sortable-steps',
         cls="sortable",
         **{
+            'hx-ext': 'sortable',
             #'hx-post': f'/checklist/{checklist.id}/reorder-steps',
             'hx-trigger': 'end',
             'hx-target': '#main-content',
-            'sortable-options': '''{
-                "animation": 150,
-                "ghostClass": "uk-opacity-50",
-                "dragClass": "uk-box-shadow-medium",
-                "onEnd": function(evt) { 
-                    // Update all step numbers
-                    Array.from(evt.to.children).forEach((item, index) => {
-                        let stepLabel = item.querySelector('.uk-form-label');
-                        stepLabel.textContent = `Step ${index + 1}`;
-                    });
-                    console.log("Final order:", Array.from(evt.to.children).map(el => el.dataset.id));
-                }
-            }'''
+            'data-checklist': checklist.id,
+            'sortable-data': 'step_order[]'
         })
     )
+
 
 
 def render_submit_button(checklist_id):

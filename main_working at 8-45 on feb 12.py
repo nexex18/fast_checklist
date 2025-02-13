@@ -73,19 +73,17 @@ table_config = {
 }
 
 hdrs = Theme.blue.headers() + [
-    Script(src="https://unpkg.com/htmx.org/dist/ext/sortable.js"),
-    Script(src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js")
+    '<script src="https://unpkg.com/htmx.org/dist/ext/sortable.js"></script>'
 ]
 
+# FastHTML App Setup
 app, rt, checklists, steps = fast_app(  
     str(DB_PATH),
     checklists=table_config['checklists'],
     steps=table_config['steps'],  
-    hdrs=hdrs, 
+    hdrs=Theme.blue.headers(), 
     live=True
 )
-
-
 
 # UI Components
 
@@ -593,25 +591,17 @@ async def post(req):
     checklist_id = int(req.path_params['checklist_id'])
     form = await req.form()
     
-    print("=== Reorder Steps Debug ===")
-    print(f"Checklist ID: {checklist_id}")
-    print("Raw form data received:", dict(form))
+    print("DEBUG - Received form data:", dict(form))
     
-    # Get the actual order from the form data
-    step_order = form.getlist('step_order[]')
-    print("Step order from form:", step_order)
+    # Get ordered step IDs from the form data
+    step_ids = [int(id) for id in form.getlist('step_order[]')]
     
-    if step_order:
-        # Convert strings to integers
-        step_order = [int(id) for id in step_order]
-        print("Processed step order:", step_order)
-        update_steps_order(checklist_id, step_order)
-        print("Steps reordered successfully")
-    else:
-        print("No step IDs received")
+    print("DEBUG - Processed step IDs:", step_ids)
+    
+    if step_ids:
+        update_steps_order(checklist_id, step_ids)
     
     return render_checklist_edit(get_checklist_with_steps(checklist_id))
-
 
 
 ### Instance related routes
