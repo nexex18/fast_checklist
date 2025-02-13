@@ -7,6 +7,17 @@ import argparse
 import json  # For handling reference_material JSON
 from fastcore.basics import AttrDict, patch
 from instance_functions import (update_instance_step_status, get_instance_step, render_instance_step, render_instance_view_two, render_instances, render_instance_view, get_instance_with_steps, get_filtered_instances,create_new_instance)
+from checklist_edit import (
+    render_checklist_edit,
+    render_new_step_modal,
+    render_checklist_header,
+    render_checklist_details,
+    render_checklist_title_section,
+    render_sortable_steps,
+    render_step_item,
+    render_submit_button,
+    update_steps_order
+)
 
 from db_connection import DBConnection
 import sqlite3
@@ -119,7 +130,6 @@ def checklist_row(checklist):
             )
         )
     )
-
 
 def create_checklist_modal():
     return Modal(
@@ -263,150 +273,7 @@ def render_main_page():
         id="main-content"
     )
 
-def render_new_step_modal(checklist_id, current_step_count):
-    return Modal(
-        ModalTitle("Add New Step"),
-        ModalBody(
-            Form(
-                LabelInput(label="Step Text", 
-                          id="step_text",
-                          placeholder="Enter step description",
-                          cls="uk-margin-small"),
-                LabelSelect(label="Status",  # Fixed: added 'label=' keyword
-                           id="step_status",
-                           options=['Not Started', 'In Progress', 'Completed'],
-                           value='Not Started',
-                           cls="uk-margin-small"),
-                LabelInput(label="Reference Link",
-                          id="step_ref",
-                          placeholder="Optional reference URL",
-                          cls="uk-margin-small"),
-                LabelInput(label="Position",
-                          id="step_position",
-                          type="number",
-                          value=str(current_step_count + 1),
-                          min="1",
-                          max=str(current_step_count + 1),
-                          cls="uk-margin-small"),
-                action=f"/checklist/{checklist_id}/step",
-                method="POST",
-                id="new-step-form"
-            )
-        ),
-        footer=DivRAligned(
-            ModalCloseButton("Cancel", cls=ButtonT.default),
-            Button("Add Step", 
-                  cls=ButtonT.primary, 
-                  type="submit",
-                  form="new-step-form")
-        ),
-        id='new-step-modal'
-    )
 
-def render_checklist_edit(checklist):
-    return Div(
-        Script(src="https://unpkg.com/htmx.org/dist/ext/sortable.js"),
-        Script(src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"),
-        # Header with back button
-        Div(
-            A("← Back", cls="uk-link-text", **{'hx-get': f'/checklist/{checklist.id}', 'hx-target': '#main-content'}),
-            cls="uk-margin-bottom"
-        ),
-        # Edit form for checklist details
-        Form(
-            # Title and Add button in same line
-            Div(
-                H2("Edit Checklist", cls="uk-heading-small uk-margin-remove"),
-                A("➕",
-                  cls="uk-link-muted uk-button uk-button-small",
-                  **{'uk-toggle': 'target: #new-step-modal'}),  # Updated to trigger modal
-                cls="uk-flex uk-flex-middle uk-flex-between"
-            ),
-            
-            LabelInput("Title", 
-                      id="title", 
-                      value=checklist.title,
-                      cls="uk-margin-small"),
-            LabelTextArea("Description", 
-                         id="description",
-                         value=checklist.description,
-                         cls="uk-margin-small"),
-            LabelTextArea("Long Description", 
-                         id="description_long",
-                         value=checklist.description_long,
-                         cls="uk-margin-small"),
-            
-            # Steps section with sortable
-            H3("Steps", cls="uk-heading-small uk-margin-top"),
-            Div(*(
-                Div(
-                    # Add drag handle and make sortable
-                    Div(
-                        Span("⋮⋮", cls="uk-margin-small-right drag-handle"),
-                        Span(f"Step {i+1}", cls="uk-form-label"),
-                        A("🗑️",
-                          cls="uk-link-danger uk-margin-small-left",
-                          **{
-                              'hx-delete': f'/checklist/{checklist.id}/step/{step.id}',
-                              'hx-confirm': 'Are you sure you want to delete this step?',
-                              'hx-target': '#main-content'
-                          }),
-                        cls="uk-flex uk-flex-middle",
-                        style="cursor: move"
-                    ),
-                    LabelInput(label="", 
-                             id=f"step_{step.id}_text",
-                             value=step.text),
-                    Div(
-                        LabelSelect(label="Status",
-                                  id=f"step_{step.id}_status",
-                                  options=['Not Started', 'In Progress', 'Completed'],
-                                  value=step.status,
-                                  cls="uk-width-1-2"),
-                        LabelInput(label="Reference",
-                                 id=f"step_{step.id}_ref",
-                                 value=step.reference_material.strip('"[]'),
-                                 cls="uk-width-1-2"),
-                        cls="uk-grid-small uk-child-width-1-2@s",
-                        **{'uk-grid': ''}
-                    ),
-                    cls="uk-margin-medium-bottom",
-                    **{
-                        'name': 'steps',
-                        'data-id': step.id
-                    }
-                )
-                for i, step in enumerate(checklist.steps)
-            ),
-            **{
-                'id': 'sortable-steps',
-                'hx-ext': 'sortable',
-                'sortable-options': '{"animation": 150, "ghostClass": "uk-opacity-50", "dragClass": "uk-box-shadow-medium"}',
-                'hx-post': f'/checklist/{checklist.id}/reorder-steps',
-                'hx-trigger': 'end',
-                'hx-target': '#main-content',
-                'hx-include': '[name=steps]'
-            }),
-            
-            # Submit button
-            DivRAligned(
-                Button("Save Changes", 
-                       cls=ButtonT.primary,
-                       **{
-                           'hx-put': f'/checklist/{checklist.id}',
-                           'hx-target': '#main-content'
-                       })
-            ),
-            id="edit-checklist-form",
-            cls="uk-form-stacked"
-        ),
-        
-        # Add the new step modal
-        render_new_step_modal(checklist.id, len(checklist.steps)),
-        
-        cls="uk-margin",
-        id="main-content"
-    )
 
 ############ Functions to support Instances Start
 def get_instance_with_steps(instance_id):
@@ -724,18 +591,18 @@ async def post(req):
     checklist_id = int(req.path_params['checklist_id'])
     form = await req.form()
     
-    # Get the new order from the form data
-    new_order = form.get('steps[]', '').split(',')
+    print("DEBUG - Received form data:", dict(form))
     
-    with DBConnection() as cursor:
-        for i, step_id in enumerate(new_order):
-            cursor.execute("""
-                UPDATE steps 
-                SET order_index = ? 
-                WHERE id = ? AND checklist_id = ?
-            """, (i, int(step_id), checklist_id))
+    # Get ordered step IDs from the form data
+    step_ids = [int(id) for id in form.getlist('step_order[]')]
+    
+    print("DEBUG - Processed step IDs:", step_ids)
+    
+    if step_ids:
+        update_steps_order(checklist_id, step_ids)
     
     return render_checklist_edit(get_checklist_with_steps(checklist_id))
+
 
 ### Instance related routes
 @rt('/instances/{checklist_id}')
