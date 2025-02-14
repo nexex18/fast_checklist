@@ -540,40 +540,28 @@ async def post(req):
     checklist_id = int(req.path_params['checklist_id'])
     form = await req.form()
     
-    # Get form data
-    step_text = form.get('step_text', 'New Step')
-    step_status = form.get('step_status', 'Not Started')
-    step_ref = f'["{form.get("step_ref", "")}"]'  # Format for JSON storage
-    position = int(form.get('step_position', 0))
-    
     with DBConnection() as cursor:
-        # If position specified, shift existing steps
-        if position:
-            cursor.execute("""
-                UPDATE steps 
-                SET order_index = order_index + 1
-                WHERE checklist_id = ? AND order_index >= ?
-            """, (checklist_id, position - 1))
-            
-            # Insert new step at specified position
-            cursor.execute("""
-                INSERT INTO steps (checklist_id, text, status, order_index, reference_material)
-                VALUES (?, ?, ?, ?, ?)
-            """, (checklist_id, step_text, step_status, position - 1, step_ref))
-        else:
-            # Add to end if no position specified
-            cursor.execute("""
-                SELECT COALESCE(MAX(order_index), -1) + 1
-                FROM steps WHERE checklist_id = ?
-            """, (checklist_id,))
-            next_order = cursor.fetchone()[0]
-            
-            cursor.execute("""
-                INSERT INTO steps (checklist_id, text, status, order_index, reference_material)
-                VALUES (?, ?, ?, ?, ?)
-            """, (checklist_id, step_text, step_status, next_order, step_ref))
+        # Get the maximum order_index for this checklist
+        cursor.execute("""
+            SELECT COALESCE(MAX(order_index), -1) + 1
+            FROM steps WHERE checklist_id = ?
+        """, (checklist_id,))
+        next_order = cursor.fetchone()[0]
+        
+        # Always insert at the end
+        cursor.execute("""
+            INSERT INTO steps (checklist_id, text, status, order_index, reference_material)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            checklist_id,
+            form.get('step_text', 'New Step'),
+            form.get('step_status', 'Not Started'),
+            next_order,  # Use the next available order_index
+            f'["{form.get("step_ref", "")}"]'
+        ))
     
     return render_checklist_edit(get_checklist_with_steps(checklist_id))
+
 
 @rt('/checklist/{checklist_id}/step/{step_id}', methods=['DELETE'])
 async def delete(req):
@@ -591,11 +579,19 @@ async def delete(req):
 async def post(req, id:list[int]):
     checklist_id = int(req.path_params['checklist_id'])
     
-    print(f"Reordering steps for checklist {checklist_id}")
-    print(f"New order (step IDs): {id}")
-    
-    # Update order_index for each step
     with DBConnection() as cursor:
+        # First, verify all steps belong to this checklist
+        step_ids = ','.join('?' * len(id))
+        cursor.execute(f"""
+            SELECT COUNT(*) 
+            FROM steps 
+            WHERE checklist_id = ? AND id IN ({step_ids})
+        """, (checklist_id, *id))
+        
+        if cursor.fetchone()[0] != len(id):
+            return "Invalid step IDs", 400
+            
+        # Update all positions in a transaction
         for i, step_id in enumerate(id):
             cursor.execute("""
                 UPDATE steps 
@@ -603,18 +599,9 @@ async def post(req, id:list[int]):
                 WHERE id = ? AND checklist_id = ?
             """, (i, step_id, checklist_id))
     
-    # Get updated checklist and return just the sorted list
+    # Return the updated list
     checklist = get_checklist_with_steps(checklist_id)
-    return Ul(*(
-        Li(
-            render_step_item(step, checklist_id, idx+1),
-            Hidden(name="id", value=step.id),
-            id=f'step-{step.id}',
-            cls="uk-padding-small uk-margin-small uk-box-shadow-small"
-        )
-        for idx, step in enumerate(checklist.steps)
-    ), cls='sortable')
-
+    return render_sortable_steps(checklist)
 
 
 

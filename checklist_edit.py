@@ -226,17 +226,13 @@ def render_step_reference(step, checklist_id):
     )
 
 def render_step_item(step, checklist_id, step_number):
-    """Render a complete step item with drag handle, text, and reference inputs"""
     return Div(
         Div(
-            # Left column with drag handle and step number
             Span("⋮⋮", 
                  cls="uk-margin-small-right drag-handle", 
                  style="cursor: move"),
             Span(f"Step {step_number}", 
                  cls="uk-form-label"),
-            
-            # Right column with text and reference inputs
             Div(
                 render_step_text(step, checklist_id),
                 render_step_reference(step, checklist_id),
@@ -246,10 +242,12 @@ def render_step_item(step, checklist_id, step_number):
         ),
         cls="uk-padding-small uk-margin-small uk-box-shadow-small",
         **{
-            'data-id': step.id,  # Required for sortable functionality
+            'data-id': step.id,
+            'data-order': step.order_index,  # Add this line
             'name': 'steps'
         }
     )
+
 
 def render_sortable_steps(checklist):
     """Render the complete sortable steps list with form wrapper"""
