@@ -444,31 +444,24 @@ async def delete(req):
 async def put(req):
     checklist_id = int(req.path_params['checklist_id'])
     form = await req.form()
+    print(f"DEBUG: PUT endpoint - Form data: {dict(form)}")
     
-    # Get checklist
-    checklist = get_checklist_with_steps(checklist_id)
-    if not checklist:
-        return Div("Checklist not found", cls="uk-alert uk-alert-danger")
-    
-    # Update checklist details
-    result = checklist.update(
-        title=form.get('title'),
-        description=form.get('description'),
-        description_long=form.get('description_long')
-    )
-    
-    # Update steps
-    for step in checklist.steps:
-        step_result = checklist.update_step(
-            step_id=step.id,
-            text=form.get(f'step_{step.id}_text'),
-            status=form.get(f'step_{step.id}_status'),
-            reference_material=form.get(f'step_{step.id}_ref', '')
-        )
-        result &= step_result
+    # Get the step order from form data
+    step_order = form.get('step_order', '').split(',')
+    if step_order and step_order[0]:  # Check if we have valid order data
+        step_ids = [int(id_) for id_ in step_order]
+        # Update the order
+        with DBConnection() as cursor:
+            for i, step_id in enumerate(step_ids):
+                cursor.execute("""
+                    UPDATE steps 
+                    SET order_index = ? 
+                    WHERE id = ? AND checklist_id = ?
+                """, (i, step_id, checklist_id))
     
     # Return to the checklist view
     return render_checklist_page(checklist_id)
+
 
 @patch
 def update(self:Checklist, title=None, description=None, description_long=None):
@@ -539,7 +532,8 @@ def get(req):
 async def post(req):
     checklist_id = int(req.path_params['checklist_id'])
     form = await req.form()
-    
+    print(f"DEBUG: Creating new step - Form data: {dict(form)}") 
+
     with DBConnection() as cursor:
         # Get the maximum order_index for this checklist
         cursor.execute("""
@@ -578,6 +572,8 @@ async def delete(req):
 @rt('/checklist/{checklist_id}/reorder-steps', methods=['POST'])
 async def post(req, id:list[int]):
     checklist_id = int(req.path_params['checklist_id'])
+    print("DEBUG: ====== REORDER ENDPOINT HIT ======")
+    print(f"DEBUG: Reordering steps - Received IDs: {id}")
     
     with DBConnection() as cursor:
         # First, verify all steps belong to this checklist
@@ -602,7 +598,6 @@ async def post(req, id:list[int]):
     # Return the updated list
     checklist = get_checklist_with_steps(checklist_id)
     return render_sortable_steps(checklist)
-
 
 
 @rt('/checklist/{checklist_id}/step/{step_id}', methods=['PUT'])

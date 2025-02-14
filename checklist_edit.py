@@ -51,24 +51,17 @@ def render_checklist_details(checklist):
 
 
 def render_submit_button(checklist_id):
-    """Render the save changes button with order capture"""
+    """Render the save changes button"""
     return Button(
         "Save Changes", 
         cls="uk-button uk-button-primary uk-margin-top",
         **{
             'hx-put': f'/checklist/{checklist_id}',
             'hx-target': '#main-content',
-            'onclick': '''
-                let order = Array.from(document.querySelector('.sortable').children)
-                    .map(el => el.dataset.id);
-                let orderInput = document.createElement('input');
-                orderInput.type = 'hidden';
-                orderInput.name = 'step_order';
-                orderInput.value = order.join(',');
-                this.form.appendChild(orderInput);
-            '''
+            'hx-include': '#steps-list'  # This will include the step_order from the form
         }
     )
+
 
 def render_new_step_modal(checklist_id, current_step_count):
     return Modal(
@@ -226,6 +219,7 @@ def render_step_reference(step, checklist_id):
     )
 
 def render_step_item(step, checklist_id, step_number):
+    print(f"DEBUG: Rendering step item - ID: {step.id}, Order: {step.order_index}")  # Add this line
     return Div(
         Div(
             Span("⋮⋮", 
@@ -257,14 +251,15 @@ def render_sortable_steps(checklist):
         Ul(*(
             Li(
                 render_step_item(step, checklist.id, idx+1),
-                Hidden(name="id", value=step.id),
+                Hidden(name="id", value=step.id),  # This remains for reordering
                 id=f'step-{step.id}',
                 cls="uk-padding-small uk-margin-small uk-box-shadow-small"
             )
             for idx, step in enumerate(checklist.steps)
         ), cls='sortable'),  # 'sortable' class is required for SortableJS
+        Hidden(name="step_order", value=",".join(str(step.id) for step in checklist.steps)),  # Add initial order
         id='steps-list',
-        # HTMX attributes for handling reordering
+        # Update these HTMX attributes
         hx_post=f'/checklist/{checklist.id}/reorder-steps',
         hx_trigger="end"  # Trigger when drag ends
     )
