@@ -368,10 +368,8 @@ def render_instance_step(step):
         cls="uk-flex uk-flex-middle uk-flex-between",
         id=f'step-container-{step.id}'
     )
-
     
 ############ Functions to support Instances Start
-
 
 def get_instance_with_steps(instance_id):
     """Get a complete instance with all its steps and related information"""

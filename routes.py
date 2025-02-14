@@ -1,8 +1,6 @@
-from fastapi import APIRouter, Request
-from fastapi.responses import RedirectResponse
+from fasthtml.common import * 
 from datetime import datetime
 from db_connection import DBConnection
-from models import Checklist
 from checklist_list import render_main_page, get_checklist_with_steps, render_checklist_page
 from checklist_edit import (
     render_checklist_edit, render_sortable_steps, render_step_item, 
