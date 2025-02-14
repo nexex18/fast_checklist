@@ -5,6 +5,8 @@ from datetime import datetime
 from fastcore.basics import AttrDict
 from db_connection import DBConnection
 
+from models import Checklist
+
 # Your instance functions here...
 
 # Data access functions
@@ -164,6 +166,51 @@ def update_instance_step_status(step_id, new_status):
         """, (new_status, step_id))
         return cursor.rowcount > 0
 
+def get_instance_with_steps(instance_id):
+    """Get a complete instance with all its steps and related information"""
+    with DBConnection() as cursor:
+        # Get instance details
+        cursor.execute("""
+            SELECT ci.*, c.title as checklist_title, c.id as checklist_id
+            FROM checklist_instances ci
+            JOIN checklists c ON ci.checklist_id = c.id
+            WHERE ci.id = ?
+        """, (instance_id,))
+        instance = cursor.fetchone()
+        
+        if not instance:
+            return None
+            
+        # Get steps with their original text and current status
+        cursor.execute("""
+            SELECT 
+                i_steps.id as instance_step_id,
+                i_steps.status,
+                i_steps.notes,
+                i_steps.updated_at,
+                s.text as step_text,
+                s.reference_material,
+                s.order_index
+            FROM instance_steps i_steps
+            JOIN steps s ON i_steps.step_id = s.id
+            WHERE i_steps.instance_id = ?
+            ORDER BY s.order_index
+        """, (instance_id,))
+        steps = cursor.fetchall()
+        
+        return AttrDict(
+            id=instance['id'],
+            checklist_id=instance['checklist_id'],  # Added this line
+            name=instance['name'],
+            description=instance['description'],
+            status=instance['status'],
+            created_at=instance['created_at'],
+            target_date=instance['target_date'],
+            checklist_title=instance['checklist_title'],
+            steps=[AttrDict(dict(step)) for step in steps]
+        )
+
+
 # Render functions
 
 def render_instances(checklist_id=None, status=None):
@@ -239,7 +286,6 @@ def render_instances(checklist_id=None, status=None):
         id="main-content",
         cls="uk-container uk-margin-top"
     )
-
 
 def render_instance_view(instance_id):
     instance = get_instance_with_steps(instance_id)
@@ -368,52 +414,6 @@ def render_instance_step(step):
         cls="uk-flex uk-flex-middle uk-flex-between",
         id=f'step-container-{step.id}'
     )
-    
-############ Functions to support Instances Start
-
-def get_instance_with_steps(instance_id):
-    """Get a complete instance with all its steps and related information"""
-    with DBConnection() as cursor:
-        # Get instance details
-        cursor.execute("""
-            SELECT ci.*, c.title as checklist_title, c.id as checklist_id
-            FROM checklist_instances ci
-            JOIN checklists c ON ci.checklist_id = c.id
-            WHERE ci.id = ?
-        """, (instance_id,))
-        instance = cursor.fetchone()
-        
-        if not instance:
-            return None
-            
-        # Get steps with their original text and current status
-        cursor.execute("""
-            SELECT 
-                i_steps.id as instance_step_id,
-                i_steps.status,
-                i_steps.notes,
-                i_steps.updated_at,
-                s.text as step_text,
-                s.reference_material,
-                s.order_index
-            FROM instance_steps i_steps
-            JOIN steps s ON i_steps.step_id = s.id
-            WHERE i_steps.instance_id = ?
-            ORDER BY s.order_index
-        """, (instance_id,))
-        steps = cursor.fetchall()
-        
-        return AttrDict(
-            id=instance['id'],
-            checklist_id=instance['checklist_id'],  # Added this line
-            name=instance['name'],
-            description=instance['description'],
-            status=instance['status'],
-            created_at=instance['created_at'],
-            target_date=instance['target_date'],
-            checklist_title=instance['checklist_title'],
-            steps=[AttrDict(dict(step)) for step in steps]
-        )
 
 def render_instance_view(instance_id):
     """Render a single instance view with basic step status management"""
@@ -462,4 +462,4 @@ def render_instance_view(instance_id):
     )
 
 
-############ Functions to support Instances End  
+  

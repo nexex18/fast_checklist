@@ -11,6 +11,8 @@ from instance_functions import (
     update_instance_step_status, get_instance_step, render_instance_step
 )
 
+from models import Checklist
+
 from main import *
 
 # Routes

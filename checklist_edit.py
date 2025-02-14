@@ -5,6 +5,56 @@ from datetime import datetime
 from fastcore.basics import AttrDict
 from db_connection import DBConnection
 
+from models import Checklist
+
+
+### Data access functions
+def update_steps_order(checklist_id: int, step_ids: list):
+    """Update the order_index of steps in a checklist"""
+    with DBConnection() as cursor:
+        for i, step_id in enumerate(step_ids):
+            cursor.execute("""
+                UPDATE steps 
+                SET order_index = ? 
+                WHERE id = ? AND checklist_id = ?
+            """, (i, int(step_id), checklist_id))
+    return True
+
+def db_update_step(checklist_id: int, step_id: int, **updates):
+    """Update step fields in database and return updated step"""
+    if not updates:
+        return None
+        
+    with DBConnection() as cursor:
+        # Build update query dynamically
+        set_clause = ', '.join(f"{k} = ?" for k in updates)
+        params = list(updates.values())
+        params.extend([step_id, checklist_id])
+        
+        cursor.execute(f"""
+            UPDATE steps 
+            SET {set_clause}
+            WHERE id = ? AND checklist_id = ?
+        """, params)
+        
+        # Get updated step
+        cursor.execute("""
+            SELECT * FROM steps 
+            WHERE id = ? AND checklist_id = ?
+        """, (step_id, checklist_id))
+        return AttrDict(cursor.fetchone())
+
+def get_step(step_id: int, checklist_id: int):
+    """Get a single step"""
+    with DBConnection() as cursor:
+        cursor.execute("""
+            SELECT * FROM steps 
+            WHERE id = ? AND checklist_id = ?
+        """, (step_id, checklist_id))
+        row = cursor.fetchone()
+        return AttrDict(row) if row else None
+
+# UI Components - rendering functions
 
 def render_checklist_header(checklist_id):
     return Div(
@@ -25,7 +75,6 @@ def render_checklist_title_section(checklist_id):
         cls="uk-flex uk-flex-middle uk-flex-between uk-margin-bottom"
     )
 
-
 def render_checklist_details(checklist):
     return [
         LabelInput("Title", 
@@ -41,9 +90,6 @@ def render_checklist_details(checklist):
                      value=checklist.description_long,
                      cls="uk-margin-small")
     ]
-
-## After making many changes to render_sortable_steps it's still not working
-## This is the current state. 
 
 def render_submit_button(checklist_id):
     return Button(
@@ -118,53 +164,6 @@ def render_checklist_edit(checklist):
         id="main-content"
     )
 
-### function support route 
-def update_steps_order(checklist_id: int, step_ids: list):
-    """Update the order_index of steps in a checklist"""
-    with DBConnection() as cursor:
-        for i, step_id in enumerate(step_ids):
-            cursor.execute("""
-                UPDATE steps 
-                SET order_index = ? 
-                WHERE id = ? AND checklist_id = ?
-            """, (i, int(step_id), checklist_id))
-    return True
-
-def db_update_step(checklist_id: int, step_id: int, **updates):
-    """Update step fields in database and return updated step"""
-    if not updates:
-        return None
-        
-    with DBConnection() as cursor:
-        # Build update query dynamically
-        set_clause = ', '.join(f"{k} = ?" for k in updates)
-        params = list(updates.values())
-        params.extend([step_id, checklist_id])
-        
-        cursor.execute(f"""
-            UPDATE steps 
-            SET {set_clause}
-            WHERE id = ? AND checklist_id = ?
-        """, params)
-        
-        # Get updated step
-        cursor.execute("""
-            SELECT * FROM steps 
-            WHERE id = ? AND checklist_id = ?
-        """, (step_id, checklist_id))
-        return AttrDict(cursor.fetchone())
-
-def get_step(step_id: int, checklist_id: int):
-    """Get a single step"""
-    with DBConnection() as cursor:
-        cursor.execute("""
-            SELECT * FROM steps 
-            WHERE id = ? AND checklist_id = ?
-        """, (step_id, checklist_id))
-        row = cursor.fetchone()
-        return AttrDict(row) if row else None
-
-# UI Components - pure rendering functions
 def render_step_text(step, checklist_id):
     """Render just the text input portion"""
     return Div(

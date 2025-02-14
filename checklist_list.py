@@ -5,6 +5,7 @@ from datetime import datetime
 from fastcore.basics import AttrDict
 from db_connection import DBConnection
 
+from models import Checklist
 
 def checklist_row(checklist):
     return Tr(
@@ -104,6 +105,48 @@ def get_checklist_with_steps(checklist_id):
         ) for row in step_rows]
     )
     
+def checklist_table():
+    with DBConnection() as cursor:
+        cursor.execute("""
+            SELECT id, title, description, description_long, created_at 
+            FROM checklists
+        """)
+        rows = cursor.fetchall()
+    
+    data = [Checklist(
+        id=row['id'],
+        title=row['title'],
+        description=row['description'],
+        description_long=row['description_long'],
+        created_at=row['created_at']
+    ) for row in rows]
+    
+    return Table(
+        Thead(
+            Tr(
+                Th("Checklist"),
+                Th("Actions", cls='uk-text-right')
+            )
+        ),
+        Tbody(*(checklist_row(checklist) for checklist in data)),
+        cls="uk-table uk-table-divider uk-table-hover uk-table-small"
+    )
+
+def render_main_page():
+    return Div(
+        Script(src="https://unpkg.com/htmx.org/dist/ext/sortable.js"),
+        Script(src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"),
+        # Rest of your existing render_main_page code...
+        H1("My Checklists", cls="uk-heading-medium"),
+        Button("+ New Checklist", 
+               cls="uk-button uk-button-primary uk-margin-bottom",
+               **{'uk-toggle': 'target: #new-checklist-modal'}),
+        checklist_table(),
+        create_checklist_modal(),
+        cls="uk-container uk-margin-top",
+        id="main-content"
+    )
+
 def render_steps(steps):
     return Div(
         H3("Steps", cls="uk-heading-small uk-margin-top"),
@@ -150,45 +193,4 @@ def render_checklist_page(checklist_id):
         id="main-content"
     )
 
-def checklist_table():
-    with DBConnection() as cursor:
-        cursor.execute("""
-            SELECT id, title, description, description_long, created_at 
-            FROM checklists
-        """)
-        rows = cursor.fetchall()
-    
-    data = [Checklist(
-        id=row['id'],
-        title=row['title'],
-        description=row['description'],
-        description_long=row['description_long'],
-        created_at=row['created_at']
-    ) for row in rows]
-    
-    return Table(
-        Thead(
-            Tr(
-                Th("Checklist"),
-                Th("Actions", cls='uk-text-right')
-            )
-        ),
-        Tbody(*(checklist_row(checklist) for checklist in data)),
-        cls="uk-table uk-table-divider uk-table-hover uk-table-small"
-    )
-
-def render_main_page():
-    return Div(
-        Script(src="https://unpkg.com/htmx.org/dist/ext/sortable.js"),
-        Script(src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"),
-        # Rest of your existing render_main_page code...
-        H1("My Checklists", cls="uk-heading-medium"),
-        Button("+ New Checklist", 
-               cls="uk-button uk-button-primary uk-margin-bottom",
-               **{'uk-toggle': 'target: #new-checklist-modal'}),
-        checklist_table(),
-        create_checklist_modal(),
-        cls="uk-container uk-margin-top",
-        id="main-content"
-    )
 
