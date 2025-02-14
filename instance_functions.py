@@ -370,4 +370,98 @@ def render_instance_step(step):
     )
 
     
+############ Functions to support Instances Start
+
+
+def get_instance_with_steps(instance_id):
+    """Get a complete instance with all its steps and related information"""
+    with DBConnection() as cursor:
+        # Get instance details
+        cursor.execute("""
+            SELECT ci.*, c.title as checklist_title, c.id as checklist_id
+            FROM checklist_instances ci
+            JOIN checklists c ON ci.checklist_id = c.id
+            WHERE ci.id = ?
+        """, (instance_id,))
+        instance = cursor.fetchone()
+        
+        if not instance:
+            return None
+            
+        # Get steps with their original text and current status
+        cursor.execute("""
+            SELECT 
+                i_steps.id as instance_step_id,
+                i_steps.status,
+                i_steps.notes,
+                i_steps.updated_at,
+                s.text as step_text,
+                s.reference_material,
+                s.order_index
+            FROM instance_steps i_steps
+            JOIN steps s ON i_steps.step_id = s.id
+            WHERE i_steps.instance_id = ?
+            ORDER BY s.order_index
+        """, (instance_id,))
+        steps = cursor.fetchall()
+        
+        return AttrDict(
+            id=instance['id'],
+            checklist_id=instance['checklist_id'],  # Added this line
+            name=instance['name'],
+            description=instance['description'],
+            status=instance['status'],
+            created_at=instance['created_at'],
+            target_date=instance['target_date'],
+            checklist_title=instance['checklist_title'],
+            steps=[AttrDict(dict(step)) for step in steps]
+        )
+
+def render_instance_view(instance_id):
+    """Render a single instance view with basic step status management"""
+    instance = get_instance_with_steps(instance_id)
+    if not instance:
+        return Div("Instance not found", cls="uk-alert uk-alert-danger")
     
+    return Div(
+        # Header with instance info and parent checklist link
+        Div(
+            A("← Back to Checklist", 
+              cls="uk-link-text", 
+              **{'hx-get': f'/checklist/{instance.checklist_id}', 
+                 'hx-target': '#main-content'}),
+            H2(instance.name, cls="uk-heading-small uk-margin-remove-bottom"),
+            P(f"From checklist: {instance.checklist_title}", 
+              cls="uk-text-meta uk-margin-remove-top"),
+            cls="uk-margin-bottom"
+        ),
+        
+        # Steps list
+        Div(*(
+            Div(
+                # Step text and status in a flex container
+                Div(
+                    P(step.step_text, cls="uk-margin-remove uk-flex-1"),
+                    Select(
+                        Option("Not Started", selected=step.status=="Not Started"),
+                        Option("In Progress", selected=step.status=="In Progress"),
+                        Option("Completed", selected=step.status=="Completed"),
+                        cls="uk-select uk-form-small uk-width-small",
+                        **{
+                            'hx-put': f'/instance-step/{step.instance_step_id}/status',
+                            'hx-target': 'closest div'
+                        }
+                    ),
+                    cls="uk-flex uk-flex-middle uk-flex-between"
+                ),
+                cls="uk-margin-medium-bottom uk-padding-small uk-box-shadow-small"
+            )
+            for step in instance.steps
+        )),
+        
+        id="main-content",
+        cls="uk-container uk-margin-top"
+    )
+
+
+############ Functions to support Instances End  

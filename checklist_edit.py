@@ -42,13 +42,8 @@ def render_checklist_details(checklist):
                      cls="uk-margin-small")
     ]
 
-
-
-
 ## After making many changes to render_sortable_steps it's still not working
 ## This is the current state. 
-
-
 
 def render_submit_button(checklist_id):
     return Button(
@@ -60,8 +55,6 @@ def render_submit_button(checklist_id):
             'hx-include': '.sortable *'  # Include all elements inside sortable
         }
     )
-
-
 
 def render_new_step_modal(checklist_id, current_step_count):
     return Modal(
@@ -137,7 +130,6 @@ def update_steps_order(checklist_id: int, step_ids: list):
             """, (i, int(step_id), checklist_id))
     return True
 
-
 def db_update_step(checklist_id: int, step_id: int, **updates):
     """Update step fields in database and return updated step"""
     if not updates:
@@ -172,7 +164,6 @@ def get_step(step_id: int, checklist_id: int):
         row = cursor.fetchone()
         return AttrDict(row) if row else None
 
-
 # UI Components - pure rendering functions
 def render_step_text(step, checklist_id):
     """Render just the text input portion"""
@@ -201,7 +192,6 @@ def render_step_text(step, checklist_id):
         cls="uk-flex uk-flex-middle",
         id=f"step-text-{step.id}"
     )
-
 
 def render_step_reference(step, checklist_id):
     """Render just the reference input portion"""
@@ -243,7 +233,6 @@ def render_step_item(step, checklist_id, step_number):
             'name': 'steps'  # Keep this for form structure
         }
     )
-
 
 def render_sortable_steps(checklist):
     return Form(
