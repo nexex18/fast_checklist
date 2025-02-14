@@ -18,7 +18,7 @@ import sqlite3
 
 from pathlib import Path
 
-from routes import router as routes_router 
+from routes import *
 
 # CLI Arguments
 parser = argparse.ArgumentParser()
@@ -70,15 +70,13 @@ table_config = {
 }
 
 
-app, _, checklists, steps = fast_app(  
+app, rt, checklists, steps = fast_app(  
     str(DB_PATH),
     checklists=table_config['checklists'],
     steps=table_config['steps'],  
     hdrs=(SortableJS('.sortable'), Theme.blue.headers()), 
     live=True
 )
-
-app.include_router(routes_router)
 
 
 # # Routes
@@ -384,16 +382,16 @@ app.include_router(routes_router)
 
 # @rt('/instance-step/{step_id}/status', methods=['PUT'])
 # async def put(req):
-    # step_id = int(req.path_params['step_id'])
-    # form = await req.form()
-    # new_status = form.get('status')
+#     step_id = int(req.path_params['step_id'])
+#     form = await req.form()
+#     new_status = form.get('status')
     
-    # if update_instance_step_status(step_id, new_status):
-    #     step = get_instance_step(step_id)
-    #     if step:
-    #         return render_instance_step(step)
+#     if update_instance_step_status(step_id, new_status):
+#         step = get_instance_step(step_id)
+#         if step:
+#             return render_instance_step(step)
     
-    # return "Error updating step status", 400
+#     return "Error updating step status", 400
 
 if __name__ == '__main__':
     serve()
