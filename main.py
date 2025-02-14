@@ -441,25 +441,20 @@ async def delete(req):
     return render_main_page()
 
 @rt('/checklist/{checklist_id}', methods=['PUT'])
-async def put(req):
+async def put(req, id:list[int]):  # Add explicit parameter expectation
     checklist_id = int(req.path_params['checklist_id'])
-    form = await req.form()
-    print(f"DEBUG: PUT endpoint - Form data: {dict(form)}")
+    print(f"DEBUG: PUT endpoint - Received IDs: {id}")  # Debug print
     
-    # Get the step order from form data
-    step_order = form.get('step_order', '').split(',')
-    if step_order and step_order[0]:  # Check if we have valid order data
-        step_ids = [int(id_) for id_ in step_order]
-        # Update the order
+    # Update the order
+    if id:  # If we have IDs
         with DBConnection() as cursor:
-            for i, step_id in enumerate(step_ids):
+            for i, step_id in enumerate(id):
                 cursor.execute("""
                     UPDATE steps 
                     SET order_index = ? 
                     WHERE id = ? AND checklist_id = ?
                 """, (i, step_id, checklist_id))
     
-    # Return to the checklist view
     return render_checklist_page(checklist_id)
 
 

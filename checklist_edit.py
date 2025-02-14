@@ -51,16 +51,16 @@ def render_checklist_details(checklist):
 
 
 def render_submit_button(checklist_id):
-    """Render the save changes button"""
     return Button(
         "Save Changes", 
         cls="uk-button uk-button-primary uk-margin-top",
         **{
             'hx-put': f'/checklist/{checklist_id}',
             'hx-target': '#main-content',
-            'hx-include': '#steps-list'  # This will include the step_order from the form
+            'hx-include': '.sortable *'  # Include all elements inside sortable
         }
     )
+
 
 
 def render_new_step_modal(checklist_id, current_step_count):
@@ -219,7 +219,7 @@ def render_step_reference(step, checklist_id):
     )
 
 def render_step_item(step, checklist_id, step_number):
-    print(f"DEBUG: Rendering step item - ID: {step.id}, Order: {step.order_index}")  # Add this line
+    print(f"DEBUG: Rendering step item - ID: {step.id}, Order: {step.order_index}")
     return Div(
         Div(
             Span("⋮⋮", 
@@ -234,32 +234,31 @@ def render_step_item(step, checklist_id, step_number):
             ),
             cls="uk-flex"
         ),
+        # Add the hidden input here, at the Div level
+        Hidden(name="id", value=step.id),  # This is the key addition
         cls="uk-padding-small uk-margin-small uk-box-shadow-small",
         **{
-            'data-id': step.id,
-            'data-order': step.order_index,  # Add this line
-            'name': 'steps'
+            'data-id': step.id,  # Keep this for SortableJS
+            'data-order': step.order_index,  # Keep this for reference
+            'name': 'steps'  # Keep this for form structure
         }
     )
 
 
 def render_sortable_steps(checklist):
-    """Render the complete sortable steps list with form wrapper"""
     return Form(
         H3("Steps", cls="uk-heading-small uk-margin-top"),
-        # Sortable list containing all steps
         Ul(*(
             Li(
                 render_step_item(step, checklist.id, idx+1),
-                Hidden(name="id", value=step.id),  # This remains for reordering
+                # Remove the Hidden input here since it's in render_step_item
                 id=f'step-{step.id}',
                 cls="uk-padding-small uk-margin-small uk-box-shadow-small"
             )
             for idx, step in enumerate(checklist.steps)
-        ), cls='sortable'),  # 'sortable' class is required for SortableJS
-        Hidden(name="step_order", value=",".join(str(step.id) for step in checklist.steps)),  # Add initial order
+        ), cls='sortable'),
+        Hidden(name="step_order", value=",".join(str(step.id) for step in checklist.steps)),
         id='steps-list',
-        # Update these HTMX attributes
         hx_post=f'/checklist/{checklist.id}/reorder-steps',
-        hx_trigger="end"  # Trigger when drag ends
+        hx_trigger="end"
     )
