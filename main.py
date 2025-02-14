@@ -621,57 +621,57 @@ async def post(req, id:list[int]):
 @rt('/checklist/{checklist_id}/step/{step_id}', methods=['PUT'])
 async def put(req):
     """Handle individual step updates (text or reference changes)"""
-    checklist_id = int(req.path_params['checklist_id'])
-    step_id = int(req.path_params['step_id'])
-    form = await req.form()
-    
-    # Process form data
-    updates = {}
-    if 'step_text' in form:
-        updates['text'] = form['step_text']
-    if 'reference_material' in form:
-        updates['reference_material'] = f'["{form["reference_material"]}"]'
-    
-    # Update and get refreshed step
-    step = update_step(checklist_id, step_id, **updates)
-    if not step:
-        return "No updates provided", 400
+    try:
+        checklist_id = int(req.path_params['checklist_id'])
+        step_id = int(req.path_params['step_id'])
+        form = await req.form()
         
-    # Return just the updated item
-    return render_step_item(step, checklist_id, step.order_index + 1)
-
-
-@rt('/checklist/{checklist_id}/step/{step_id}', methods=['PUT'])
-async def put(req):
-    """Handle individual step updates (text or reference changes)"""
-    checklist_id = int(req.path_params['checklist_id'])
-    step_id = int(req.path_params['step_id'])
-    form = await req.form()
-    
-    print(f"Raw form data: {dict(form)}")  # Debug log
-    
-    # Verify we're updating the correct step
-    form_step_id = form.get('step_id')
-    if form_step_id and int(form_step_id) != step_id:
-        print(f"ID mismatch: form={form_step_id}, url={step_id}")
-        return "Invalid step ID", 400
-    
-    # Process form data
-    updates = {}
-    if 'step_text' in form:
-        new_text = form['step_text'].strip()
-        if new_text != '':  # Only update if there's actual text
-            updates['text'] = new_text
+        print(f"Raw form data: {dict(form)}")  # Debug log
+        
+        # Verify we're updating the correct step
+        form_step_id = form.get('step_id')
+        if form_step_id and int(form_step_id) != step_id:
+            print(f"ID mismatch: form={form_step_id}, url={step_id}")
+            return "Invalid step ID", 400
+        
+        # Process form data
+        updates = {}
+        if 'step_text' in form:
+            new_text = form['step_text'].strip()
+            if new_text != '':  # Only update if there's actual text
+                updates['text'] = new_text
+                
+        if 'reference_material' in form:
+            ref_material = form['reference_material'].strip()
+            if ref_material:  # Only update if there's a reference
+                updates['reference_material'] = f'["{ref_material}"]'
             
-    print(f"Processing updates: {updates}")  # Debug log
-    
-    # Update and get refreshed step
-    step = db_update_step(checklist_id, step_id, **updates)
-    if not step:
-        return "No updates provided", 400
-    
-    print(f"Updated step: {step}")  # Debug log
-    return render_step_text(step, checklist_id)
+        print(f"Processing updates: {updates}")  # Debug log
+        
+        if not updates:
+            return "No valid updates provided", 400
+            
+        # Update and get refreshed step
+        step = db_update_step(checklist_id, step_id, **updates)
+        if not step:
+            return "Step not found or update failed", 404
+        
+        print(f"Updated step: {step}")  # Debug log
+        
+        # Return appropriate render based on what was updated
+        if 'text' in updates and 'reference_material' in updates:
+            return render_step_item(step, checklist_id, step.order_index + 1)
+        elif 'text' in updates:
+            return render_step_text(step, checklist_id)
+        else:
+            return render_step_reference(step, checklist_id)
+            
+    except ValueError as e:
+        print(f"Validation error: {e}")
+        return f"Invalid input: {str(e)}", 400
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return "Server error", 500
 
 
 
