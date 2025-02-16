@@ -57,7 +57,6 @@ table_config = {
         'text': str,
         'status': str,
         'order_index': int,
-        'reference_material': str,  # Will store URLs as JSON string
         'pk': 'id'
     }
 }
