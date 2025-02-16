@@ -141,9 +141,14 @@ def get(req):
         return Div("Checklist not found", cls="uk-alert uk-alert-danger")
     return render_checklist_edit(checklist)
 
-### Routes to handle checklist Edit Features
+
+
+
+
+
 @rt('/checklist/{checklist_id}/step', methods=['POST'])
 async def post(req):
+    """Create a new step and optionally its reference"""
     checklist_id = int(req.path_params['checklist_id'])
     form = await req.form()
     print(f"DEBUG: Creating new step - Form data: {dict(form)}") 
@@ -156,19 +161,37 @@ async def post(req):
         """, (checklist_id,))
         next_order = cursor.fetchone()[0]
         
-        # Always insert at the end
+        # Insert the step without reference_material
         cursor.execute("""
-            INSERT INTO steps (checklist_id, text, status, order_index, reference_material)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO steps (checklist_id, text, status, order_index)
+            VALUES (?, ?, ?, ?)
         """, (
             checklist_id,
             form.get('step_text', 'New Step'),
             form.get('step_status', 'Not Started'),
-            next_order,  # Use the next available order_index
-            f'["{form.get("step_ref", "")}"]'
+            next_order
         ))
+        
+        step_id = cursor.lastrowid
+        
+        # If a reference URL was provided, create it
+        if ref_url := form.get('step_ref', '').strip():
+            is_valid, error = validate_url(ref_url)
+            if is_valid:
+                cursor.execute("""
+                    INSERT INTO step_references (step_id, url, type_id)
+                    VALUES (?, ?, ?)
+                """, (step_id, ref_url, 1))
     
     return render_checklist_edit(get_checklist_with_steps(checklist_id))
+
+
+
+
+
+
+
+
 
 @rt('/checklist/{checklist_id}/step/{step_id}', methods=['DELETE'])
 async def delete(req):
@@ -212,35 +235,22 @@ async def post(req, id:list[int]):
     checklist = get_checklist_with_steps(checklist_id)
     return render_sortable_steps(checklist)
 
+
+
 @rt('/checklist/{checklist_id}/step/{step_id}', methods=['PUT'])
 async def put(req):
-    """Handle individual step updates (text or reference changes)"""
+    """Handle individual step updates (text changes only)"""
     try:
         checklist_id = int(req.path_params['checklist_id'])
         step_id = int(req.path_params['step_id'])
         form = await req.form()
         
-        print(f"Raw form data: {dict(form)}")  # Debug log
-        
-        # Verify we're updating the correct step
-        form_step_id = form.get('step_id')
-        if form_step_id and int(form_step_id) != step_id:
-            print(f"ID mismatch: form={form_step_id}, url={step_id}")
-            return "Invalid step ID", 400
-        
-        # Process form data
+        # Process form data - now only handling text updates
         updates = {}
         if 'step_text' in form:
             new_text = form['step_text'].strip()
             if new_text != '':  # Only update if there's actual text
                 updates['text'] = new_text
-                
-        if 'reference_material' in form:
-            ref_material = form['reference_material'].strip()
-            if ref_material:  # Only update if there's a reference
-                updates['reference_material'] = f'["{ref_material}"]'
-            
-        print(f"Processing updates: {updates}")  # Debug log
         
         if not updates:
             return "No valid updates provided", 400
@@ -250,15 +260,8 @@ async def put(req):
         if not step:
             return "Step not found or update failed", 404
         
-        print(f"Updated step: {step}")  # Debug log
-        
         # Return appropriate render based on what was updated
-        if 'text' in updates and 'reference_material' in updates:
-            return render_step_item(step, checklist_id, step.order_index + 1)
-        elif 'text' in updates:
-            return render_step_text(step, checklist_id)
-        else:
-            return render_step_reference(step, checklist_id)
+        return render_step_text(step, checklist_id)
             
     except ValueError as e:
         print(f"Validation error: {e}")
@@ -266,6 +269,28 @@ async def put(req):
     except Exception as e:
         print(f"Unexpected error: {e}")
         return "Server error", 500
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### Instance related routes
 @rt('/instances/{checklist_id}')
@@ -303,47 +328,31 @@ async def put(req):
     
     return "Error updating step status", 400
 
+
+
 @rt('/step/{step_id}/reference', methods=['PUT'])
-async def put(req, step_id: int, url: str):
+async def put(req, step_id: int):
     """Handle reference URL updates"""
+    form = await req.form()
+    url = form.get('url', '').strip()
+    print(f"DEBUG: Updating reference - Step ID: {step_id}, URL: {url}")
+    
+    # First verify the step exists
+    step = get_step(step_id)
+    if not step:
+        return "Step not found", 404
+        
+    # Validate URL
     is_valid, error = validate_url(url)
     if not is_valid:
         return error, 400
         
+    # Update reference
     ref = update_step_reference(step_id, url)
     if ref:
-        step = get_step(step_id)  # Now works without checklist_id
         return render_step_reference(step, None)
     return "Error updating reference", 400
 
-
-@patch
-def update_step(self:Checklist, step_id, text=None, status=None, reference_material=None):
-    """Update a step in the checklist"""
-    with DBConnection() as cursor:
-        updates = []
-        params = []
-        if text is not None:
-            updates.append("text = ?")
-            params.append(text)
-        if status is not None:
-            updates.append("status = ?")
-            params.append(status)
-        if reference_material is not None:
-            updates.append("reference_material = ?")
-            params.append(reference_material)
-            
-        if not updates:
-            return False
-            
-        query = f"""
-            UPDATE steps 
-            SET {', '.join(updates)}
-            WHERE id = ? AND checklist_id = ?
-        """
-        params.extend([step_id, self.id])
-        cursor.execute(query, params)
-        return cursor.rowcount > 0
 
 
 
