@@ -21,15 +21,23 @@ def update_steps_order(checklist_id: int, step_ids: list):
             """, (i, int(step_id), checklist_id))
     return True
 
+
+
 def db_update_step(checklist_id: int, step_id: int, **updates):
     """Update step fields in database and return updated step"""
     if not updates:
         return None
+    
+    # Only allow text and status updates
+    allowed_fields = {'text', 'status'}
+    valid_updates = {k: v for k, v in updates.items() if k in allowed_fields}
+    
+    if not valid_updates:
+        return None
         
     with DBConnection() as cursor:
-        # Build update query dynamically
-        set_clause = ', '.join(f"{k} = ?" for k in updates)
-        params = list(updates.values())
+        set_clause = ', '.join(f"{k} = ?" for k in valid_updates)
+        params = list(valid_updates.values())
         params.extend([step_id, checklist_id])
         
         cursor.execute(f"""
@@ -44,6 +52,7 @@ def db_update_step(checklist_id: int, step_id: int, **updates):
             WHERE id = ? AND checklist_id = ?
         """, (step_id, checklist_id))
         return AttrDict(cursor.fetchone())
+
 
 def get_step_reference(step_id: int):
     """Get reference URL for a step"""

@@ -70,8 +70,10 @@ def create_checklist_modal():
         id='new-checklist-modal'
     )
 
+
 def get_checklist_with_steps(checklist_id):
     with DBConnection() as cursor:
+        # Get checklist details
         cursor.execute("""
             SELECT id, title, description, description_long, created_at 
             FROM checklists WHERE id = ?
@@ -81,30 +83,30 @@ def get_checklist_with_steps(checklist_id):
         if not checklist_row:
             return None
             
+        # Get steps with their references
         cursor.execute("""
-            SELECT id, text, status, order_index, reference_material
-            FROM steps 
-            WHERE checklist_id = ?
-            ORDER BY order_index
+            SELECT 
+                s.id, s.text, s.status, s.order_index,
+                sr.url as reference_url
+            FROM steps s
+            LEFT JOIN step_references sr ON s.id = sr.step_id
+            WHERE s.checklist_id = ?
+            ORDER BY s.order_index
         """, (checklist_id,))
         step_rows = cursor.fetchall()
     
-    # Create the checklist using our new class
+    # Create the checklist using our class
     return Checklist(
         id=checklist_row['id'],
         title=checklist_row['title'],
         description=checklist_row['description'],
         description_long=checklist_row['description_long'],
         created_at=checklist_row['created_at'],
-        steps=[AttrDict(
-            id=row['id'],
-            text=row['text'],
-            status=row['status'],
-            order_index=row['order_index'],
-            reference_material=row['reference_material']
-        ) for row in step_rows]
+        steps=[AttrDict(dict(row)) for row in step_rows]
     )
-    
+
+
+
 def checklist_table():
     with DBConnection() as cursor:
         cursor.execute("""
@@ -158,14 +160,15 @@ def render_steps(steps):
                         Span(f" ({step.status})", cls="uk-text-muted uk-text-small"),
                         cls="uk-margin-small-bottom"
                     ),
-                    P(A("Reference", href=step.reference_material.strip('"[]'))) 
-                    if step.reference_material and step.reference_material != '[]' 
+                    P(A("Reference", href=step.reference_url)) 
+                    if step.reference_url 
                     else "",
                     cls="uk-margin-small"
                 )
             ) for step in steps
         ), cls="uk-list uk-list-divider")
     )
+
 
 def render_checklist_page(checklist_id):
     # Get the combined data using our new function
