@@ -37,7 +37,26 @@ def remove_reference_material_column():
             print("Column reference_material does not exist")
 
 with DBConnection() as cursor:
-    cursor.execute("PRAGMA table_info('steps')")
-    print("\nSteps table columns:")
-    for col in cursor.fetchall():
-        print(dict(col))
+    # First backup existing data
+    cursor.execute("SELECT * FROM step_references")
+    existing_data = cursor.fetchall()
+    
+    # Drop and recreate table with UNIQUE constraint
+    cursor.execute("DROP TABLE IF EXISTS step_references")
+    cursor.execute("""
+        CREATE TABLE step_references (
+            id INTEGER PRIMARY KEY,
+            step_id INTEGER UNIQUE NOT NULL,
+            url TEXT NOT NULL,
+            type_id INTEGER DEFAULT 1,
+            FOREIGN KEY(step_id) REFERENCES steps(id),
+            FOREIGN KEY(type_id) REFERENCES reference_types(id)
+        )
+    """)
+    
+    # Restore data if any exists
+    if existing_data:
+        cursor.executemany(
+            "INSERT INTO step_references (id, step_id, url, type_id) VALUES (?, ?, ?, ?)",
+            [(r['id'], r['step_id'], r['url'], r['type_id']) for r in existing_data]
+        )

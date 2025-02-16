@@ -144,49 +144,59 @@ def get(req):
 
 
 
-
-
 @rt('/checklist/{checklist_id}/step', methods=['POST'])
 async def post(req):
     """Create a new step and optionally its reference"""
     checklist_id = int(req.path_params['checklist_id'])
     form = await req.form()
-    print(f"DEBUG: Creating new step - Form data: {dict(form)}") 
-
-    with DBConnection() as cursor:
-        # Get the maximum order_index for this checklist
-        cursor.execute("""
-            SELECT COALESCE(MAX(order_index), -1) + 1
-            FROM steps WHERE checklist_id = ?
-        """, (checklist_id,))
-        next_order = cursor.fetchone()[0]
-        
-        # Insert the step without reference_material
-        cursor.execute("""
-            INSERT INTO steps (checklist_id, text, status, order_index)
-            VALUES (?, ?, ?, ?)
-        """, (
-            checklist_id,
-            form.get('step_text', 'New Step'),
-            form.get('step_status', 'Not Started'),
-            next_order
-        ))
-        
-        step_id = cursor.lastrowid
-        
-        # If a reference URL was provided, create it
-        if ref_url := form.get('step_ref', '').strip():
-            is_valid, error = validate_url(ref_url)
-            if is_valid:
-                cursor.execute("""
-                    INSERT INTO step_references (step_id, url, type_id)
-                    VALUES (?, ?, ?)
-                """, (step_id, ref_url, 1))
     
-    return render_checklist_edit(get_checklist_with_steps(checklist_id))
-
-
-
+    with DBConnection() as cursor:
+        try:
+            cursor.execute("BEGIN")
+            
+            # Get next order index
+            cursor.execute("""
+                SELECT COALESCE(MAX(order_index), -1) + 1
+                FROM steps WHERE checklist_id = ?
+            """, (checklist_id,))
+            next_order = cursor.fetchone()[0]
+            
+            # Insert step
+            cursor.execute("""
+                INSERT INTO steps (checklist_id, text, status, order_index)
+                VALUES (?, ?, ?, ?)
+            """, (
+                checklist_id,
+                form.get('step_text', 'New Step'),
+                form.get('step_status', 'Not Started'),
+                next_order
+            ))
+            
+            step_id = cursor.lastrowid
+            ref_error = None
+            
+            # Handle reference if provided
+            if ref_url := form.get('step_ref', '').strip():
+                is_valid, error = validate_url(ref_url)
+                if is_valid:
+                    cursor.execute("""
+                        INSERT INTO step_references (step_id, url, type_id)
+                        VALUES (?, ?, ?)
+                    """, (step_id, ref_url, 1))
+                else:
+                    ref_error = error
+            
+            cursor.execute("COMMIT")
+            
+            # Get updated checklist for rendering
+            checklist = get_checklist_with_steps(checklist_id)
+            if ref_error:
+                return render_checklist_edit(checklist), f"Step created but reference invalid: {ref_error}", 400
+            return render_checklist_edit(checklist)
+            
+        except Exception as e:
+            cursor.execute("ROLLBACK")
+            return f"Error creating step: {str(e)}", 500
 
 
 
@@ -329,31 +339,30 @@ async def put(req):
     return "Error updating step status", 400
 
 
-
 @rt('/step/{step_id}/reference', methods=['PUT'])
 async def put(req, step_id: int):
     """Handle reference URL updates"""
     form = await req.form()
     url = form.get('url', '').strip()
-    print(f"DEBUG: Updating reference - Step ID: {step_id}, URL: {url}")
+    print(f"DEBUG: Received form data: {dict(form)}")
+    print(f"DEBUG: Parsed URL: '{url}'")
     
-    # First verify the step exists
+    # Get step first to ensure it exists
     step = get_step(step_id)
     if not step:
-        return "Step not found", 404
+        print(f"DEBUG: Step {step_id} not found")
+        return render_step_reference(step, None, error="Step not found")
         
     # Validate URL
     is_valid, error = validate_url(url)
+    print(f"DEBUG: URL validation - Valid: {is_valid}, Error: {error}")
+    
     if not is_valid:
-        return error, 400
+        return render_step_reference(step, None, error=error)
         
     # Update reference
     ref = update_step_reference(step_id, url)
-    if ref:
-        return render_step_reference(step, None)
-    return "Error updating reference", 400
-
-
-
-
+    print(f"DEBUG: Updated reference result: {dict(ref) if ref else None}")
+    
+    return render_step_reference(step, None)
 

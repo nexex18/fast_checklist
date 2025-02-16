@@ -254,21 +254,32 @@ def render_step_text(step, checklist_id):
         id=f"step-text-{step.id}"
     )
 
-def render_step_reference(step, checklist_id):
-    """Render just the reference input portion"""
+
+def render_step_reference(step, checklist_id, error=None):
+    """Render reference input with error handling"""
     ref = get_step_reference(step.id)
-    return LabelInput(
-        label="Reference URL",
-        id=f"step_{step.id}_ref",
-        name="url",
-        value=ref.url if ref else "",  # Just use the URL value
-        cls="uk-width-1-1 uk-margin-small-top",
-        **{
-            'hx-put': f'/step/{step.id}/reference',
-            'hx-trigger': 'change',
-            'hx-target': 'closest div'
-        }
+    return Div(
+        Form(
+            LabelInput(
+                label="Reference URL",
+                id=f"step_{step.id}_ref",
+                name="url",
+                value=ref.url if ref else "",
+                cls=f"uk-width-1-1 uk-margin-small-top {('uk-form-danger' if error else '')}"
+            ),
+            **{
+                'hx-put': f'/step/{step.id}/reference',
+                'hx-trigger': 'change',
+                'hx-target': 'closest div',
+                'hx-swap': 'outerHTML'
+            }
+        ),
+        P(error, cls="uk-text-danger uk-text-small uk-margin-remove-top") if error else "",
+        id=f"step-ref-{step.id}",  # Add an ID for targeting
+        cls="uk-margin-small"
     )
+
+
 
 
 def render_step_item(step, checklist_id, step_number):
