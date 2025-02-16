@@ -65,6 +65,7 @@ def get_step_reference(step_id: int):
         row = cursor.fetchone()
         return AttrDict(row) if row else None
 
+
 def update_step_reference(step_id: int, url: str, type_id: int = 1):
     """Create or update a reference URL for a step"""
     with DBConnection() as cursor:
@@ -72,11 +73,20 @@ def update_step_reference(step_id: int, url: str, type_id: int = 1):
             INSERT INTO step_references (step_id, url, type_id)
             VALUES (?, ?, ?)
             ON CONFLICT(step_id) DO UPDATE SET
-                url = excluded.url,
-                type_id = excluded.type_id
-            RETURNING *
-        """, (step_id, url, type_id))
-        return get_step_reference(step_id)
+                url = ?,
+                type_id = ?
+        """, (step_id, url, type_id, url, type_id))
+        
+        # Fetch the updated reference separately
+        cursor.execute("""
+            SELECT id, url, type_id
+            FROM step_references
+            WHERE step_id = ?
+        """, (step_id,))
+        row = cursor.fetchone()
+        return AttrDict(row) if row else None
+
+
 
 
 def get_step(step_id: int, checklist_id: int = None):
