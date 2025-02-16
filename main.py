@@ -16,10 +16,13 @@ from instance_functions import (get_instance_with_steps, get_filtered_instances,
                               create_new_instance, get_instance_step, update_instance_step_status,
                               render_instances, render_instance_view, render_instance_view_two,
                               render_instance_step)
+
 from checklist_edit import (render_checklist_edit, render_new_step_modal, render_checklist_header,
                           render_checklist_details, render_checklist_title_section, render_sortable_steps,
                           render_step_item, render_submit_button, update_steps_order, db_update_step,
-                          get_step, render_step_text)
+                          get_step, render_step_text, ender_step_reference, get_step_reference, update_step_reference, validate_url)
+
+
 from db_connection import DBConnection
 from routes import *
 

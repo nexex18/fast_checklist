@@ -7,6 +7,7 @@ from db_connection import DBConnection
 
 from models import Checklist
 
+from urllib.parse import urlparse
 
 ### Data access functions
 def update_steps_order(checklist_id: int, step_ids: list):
@@ -44,15 +45,67 @@ def db_update_step(checklist_id: int, step_id: int, **updates):
         """, (step_id, checklist_id))
         return AttrDict(cursor.fetchone())
 
-def get_step(step_id: int, checklist_id: int):
-    """Get a single step"""
+def get_step_reference(step_id: int):
+    """Get reference URL for a step"""
     with DBConnection() as cursor:
         cursor.execute("""
-            SELECT * FROM steps 
-            WHERE id = ? AND checklist_id = ?
-        """, (step_id, checklist_id))
+            SELECT sr.id, sr.url, sr.type_id
+            FROM step_references sr
+            WHERE sr.step_id = ?
+        """, (step_id,))
         row = cursor.fetchone()
         return AttrDict(row) if row else None
+
+def update_step_reference(step_id: int, url: str, type_id: int = 1):
+    """Create or update a reference URL for a step"""
+    with DBConnection() as cursor:
+        cursor.execute("""
+            INSERT INTO step_references (step_id, url, type_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(step_id) DO UPDATE SET
+                url = excluded.url,
+                type_id = excluded.type_id
+            RETURNING *
+        """, (step_id, url, type_id))
+        return get_step_reference(step_id)
+
+
+def get_step(step_id: int, checklist_id: int = None):
+    """Get a single step with its reference"""
+    with DBConnection() as cursor:
+        query = """
+            SELECT 
+                s.id, s.checklist_id, s.text, s.status, s.order_index,
+                sr.url as reference_url, sr.type_id as reference_type_id
+            FROM steps s
+            LEFT JOIN step_references sr ON s.id = sr.step_id
+            WHERE s.id = ?
+        """
+        params = [step_id]
+        if checklist_id is not None:
+            query += " AND s.checklist_id = ?"
+            params.append(checklist_id)
+            
+        cursor.execute(query, params)
+        row = cursor.fetchone()
+        return AttrDict(row) if row else None
+
+
+def validate_url(url: str) -> tuple[bool, str]:
+    """Validate URL and return (is_valid, error_message)"""
+    if not url:
+        return False, "URL cannot be empty"
+    try:
+        result = urlparse(url)
+        if not all([result.scheme, result.netloc]):
+            return False, "URL must include scheme (http:// or https://) and domain"
+        if result.scheme not in ['http', 'https']:
+            return False, "URL must use http or https"
+        return True, ""
+    except Exception as e:
+        return False, f"Invalid URL format: {str(e)}"
+
+
 
 # UI Components - rendering functions
 
@@ -194,18 +247,20 @@ def render_step_text(step, checklist_id):
 
 def render_step_reference(step, checklist_id):
     """Render just the reference input portion"""
+    ref = get_step_reference(step.id)
     return LabelInput(
-        label="Reference Material",
+        label="Reference URL",
         id=f"step_{step.id}_ref",
-        name="reference_material",  # Added name for form handling
-        value=step.reference_material.strip('"[]') if step.reference_material else "",
+        name="url",
+        value=ref.url if ref else "",  # Just use the URL value
         cls="uk-width-1-1 uk-margin-small-top",
         **{
-            'hx-put': f'/checklist/{checklist_id}/step/{step.id}',
+            'hx-put': f'/step/{step.id}/reference',
             'hx-trigger': 'change',
             'hx-target': 'closest div'
         }
     )
+
 
 def render_step_item(step, checklist_id, step_number):
     print(f"DEBUG: Rendering step item - ID: {step.id}, Order: {step.order_index}")

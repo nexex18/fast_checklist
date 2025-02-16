@@ -4,8 +4,10 @@ from db_connection import DBConnection
 from checklist_list import render_main_page, get_checklist_with_steps, render_checklist_page
 from checklist_edit import (
     render_checklist_edit, render_sortable_steps, render_step_item, 
-    render_step_text, render_step_reference, db_update_step
+    render_step_text, render_step_reference, db_update_step,
+    get_step, get_step_reference, update_step_reference, validate_url
 )
+
 from instance_functions import (
     render_instances, render_instance_view_two, create_new_instance,
     update_instance_step_status, get_instance_step, render_instance_step
@@ -128,34 +130,6 @@ def update(self:Checklist, title=None, description=None, description_long=None):
             WHERE id = ?
         """
         params.append(self.id)
-        cursor.execute(query, params)
-        return cursor.rowcount > 0
-
-@patch
-def update_step(self:Checklist, step_id, text=None, status=None, reference_material=None):
-    """Update a step in the checklist"""
-    with DBConnection() as cursor:
-        updates = []
-        params = []
-        if text is not None:
-            updates.append("text = ?")
-            params.append(text)
-        if status is not None:
-            updates.append("status = ?")
-            params.append(status)
-        if reference_material is not None:
-            updates.append("reference_material = ?")
-            params.append(reference_material)
-            
-        if not updates:
-            return False
-            
-        query = f"""
-            UPDATE steps 
-            SET {', '.join(updates)}
-            WHERE id = ? AND checklist_id = ?
-        """
-        params.extend([step_id, self.id])
         cursor.execute(query, params)
         return cursor.rowcount > 0
 
@@ -328,3 +302,49 @@ async def put(req):
             return render_instance_step(step)
     
     return "Error updating step status", 400
+
+@rt('/step/{step_id}/reference', methods=['PUT'])
+async def put(req, step_id: int, url: str):
+    """Handle reference URL updates"""
+    is_valid, error = validate_url(url)
+    if not is_valid:
+        return error, 400
+        
+    ref = update_step_reference(step_id, url)
+    if ref:
+        step = get_step(step_id)  # Now works without checklist_id
+        return render_step_reference(step, None)
+    return "Error updating reference", 400
+
+
+@patch
+def update_step(self:Checklist, step_id, text=None, status=None, reference_material=None):
+    """Update a step in the checklist"""
+    with DBConnection() as cursor:
+        updates = []
+        params = []
+        if text is not None:
+            updates.append("text = ?")
+            params.append(text)
+        if status is not None:
+            updates.append("status = ?")
+            params.append(status)
+        if reference_material is not None:
+            updates.append("reference_material = ?")
+            params.append(reference_material)
+            
+        if not updates:
+            return False
+            
+        query = f"""
+            UPDATE steps 
+            SET {', '.join(updates)}
+            WHERE id = ? AND checklist_id = ?
+        """
+        params.extend([step_id, self.id])
+        cursor.execute(query, params)
+        return cursor.rowcount > 0
+
+
+
+
