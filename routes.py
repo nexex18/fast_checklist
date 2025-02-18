@@ -342,23 +342,20 @@ async def put(req):
         field_name = req.path_params['field_name']
         form = await req.form()
         
-        # Process form data - similar to step text pattern
-        updates = {}
-        form_field_name = f"{field_name}_text"  # Matches render function
-        
-        if form_field_name in form:
-            new_value = form[form_field_name].strip()
-            if new_value != '':  # Only update if there's actual text
-                updates[field_name] = new_value
-        
-        if not updates:
-            return "No valid updates provided", 400
+        # Get form field value using the same pattern as render function
+        input_id = f"{field_name}_text"
+        if input_id not in form:
+            return "Missing field value", 400
+            
+        new_value = form[input_id].strip()
+        if not new_value:
+            return "Empty value not allowed", 400
             
         # Update and get refreshed checklist
-        checklist = update_checklist_field(checklist_id, field_name, updates[field_name])
+        checklist = update_checklist_field(checklist_id, field_name, new_value)
         if not checklist:
-            return "Field update failed", 404
-        
+            return "Update failed", 404
+            
         # Return the updated field component
         return render_checklist_field(
             checklist.id, 
@@ -371,4 +368,3 @@ async def put(req):
     except Exception as e:
         print(f"Error updating field: {e}")
         return "Server error", 500
-

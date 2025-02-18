@@ -343,25 +343,25 @@ def render_sortable_steps(checklist):
 
 def render_checklist_field(checklist_id, field_name, value, label, input_type="input"):
     """Render a single auto-saving field"""
-    field_id = f"checklist-field-{checklist_id}-{field_name}"
-    form_field_name = f"{field_name}_text"  # Matches what route will look for
+    field_id = f"checklist-{field_name}-{checklist_id}"
+    input_id = f"{field_name}_text"
     
     input_comp = (LabelTextArea(label, 
-                               id=field_id,
-                               name=form_field_name,  # Consistent naming
+                               id=input_id,
+                               name=input_id,  # Consistent with step pattern
                                value=value,
                                cls="uk-width-1-1") 
                   if input_type == "textarea" 
                   else LabelInput(label, 
-                                id=field_id,
-                                name=form_field_name,  # Consistent naming
+                                id=input_id,
+                                name=input_id,  # Consistent with step pattern
                                 value=value,
                                 cls="uk-width-1-1"))
     
     return Div(
         Form(
             input_comp,
-            Hidden(name="field_name", value=field_name),  # Added to help route handler
+            Hidden(name="field_name", value=field_name),
             **{
                 'hx-put': f'/checklist/{checklist_id}/field/{field_name}',
                 'hx-trigger': 'change',
@@ -369,7 +369,7 @@ def render_checklist_field(checklist_id, field_name, value, label, input_type="i
                 'hx-swap': 'outerHTML'
             }
         ),
-        cls="uk-margin-small",
+        cls="uk-flex uk-flex-middle",  # Matched step pattern
         id=field_id
     )
 
