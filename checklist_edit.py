@@ -150,6 +150,7 @@ def render_checklist_header(checklist_id):
         cls="uk-margin-bottom"
     )
 
+
 def render_checklist_title_section(checklist_id):
     """Render the title section with add step button"""
     return Div(
@@ -159,6 +160,7 @@ def render_checklist_title_section(checklist_id):
           **{'uk-toggle': 'target: #new-step-modal'}),
         cls="uk-flex uk-flex-middle uk-flex-between uk-margin-bottom"
     )
+
 
 def render_checklist_details(checklist):
     return [
@@ -176,16 +178,16 @@ def render_checklist_details(checklist):
                      cls="uk-margin-small")
     ]
 
-def render_submit_button(checklist_id):
-    return Button(
-        "Save Changes", 
-        cls="uk-button uk-button-primary uk-margin-top",
-        **{
-            'hx-put': f'/checklist/{checklist_id}',
-            'hx-target': '#main-content',
-            'hx-include': '.sortable *'  # Include all elements inside sortable
-        }
-    )
+# def render_submit_button(checklist_id):
+#     return Button(
+#         "Save Changes", 
+#         cls="uk-button uk-button-primary uk-margin-top",
+#         **{
+#             'hx-put': f'/checklist/{checklist_id}',
+#             'hx-target': '#main-content',
+#             'hx-include': '.sortable *'  # Include all elements inside sortable
+#         }
+#     )
 
 def render_new_step_modal(checklist_id, current_step_count):
     return Modal(
@@ -348,13 +350,13 @@ def render_checklist_field(checklist_id, field_name, value, label, input_type="i
     
     input_comp = (LabelTextArea(label, 
                                id=input_id,
-                               name=input_id,  # Consistent with step pattern
+                               name=input_id,
                                value=value,
                                cls="uk-width-1-1") 
                   if input_type == "textarea" 
                   else LabelInput(label, 
                                 id=input_id,
-                                name=input_id,  # Consistent with step pattern
+                                name=input_id,
                                 value=value,
                                 cls="uk-width-1-1"))
     
@@ -362,17 +364,21 @@ def render_checklist_field(checklist_id, field_name, value, label, input_type="i
         Form(
             input_comp,
             Hidden(name="field_name", value=field_name),
+            Div(
+                Span("Saving...", cls="uk-text-muted"),
+                cls="htmx-indicator"
+            ),
             **{
                 'hx-put': f'/checklist/{checklist_id}/field/{field_name}',
                 'hx-trigger': 'change',
                 'hx-target': f'#{field_id}',
-                'hx-swap': 'outerHTML'
+                'hx-swap': 'outerHTML',
+                'hx-indicator': '.htmx-indicator'
             }
         ),
-        cls="uk-flex uk-flex-middle",  # Matched step pattern
+        cls="uk-flex uk-flex-middle",
         id=field_id
     )
-
 
 
 def render_checklist_details(checklist):

@@ -19,7 +19,7 @@ from instance_functions import (get_instance_with_steps, get_filtered_instances,
 
 from checklist_edit import (render_checklist_edit, render_new_step_modal, render_checklist_header,
                           render_checklist_details, render_checklist_title_section, render_sortable_steps,
-                          render_step_item, render_submit_button, update_steps_order, db_update_step,
+                          render_step_item, update_steps_order, db_update_step,
                           get_step, render_step_text, render_step_reference, get_step_reference, update_step_reference, validate_url)
 
 

@@ -2,6 +2,7 @@ from fasthtml.common import *
 from datetime import datetime
 from db_connection import DBConnection
 from checklist_list import render_main_page, get_checklist_with_steps, render_checklist_page
+
 from checklist_edit import (
     render_checklist_edit, render_sortable_steps, render_step_item, 
     render_step_text, render_step_reference, db_update_step,
@@ -88,22 +89,22 @@ async def delete(req):
         checklist.delete()
     return render_main_page()
 
-@rt('/checklist/{checklist_id}', methods=['PUT'])
-async def put(req, id:list[int]):  # Add explicit parameter expectation
-    checklist_id = int(req.path_params['checklist_id'])
-    print(f"DEBUG: PUT endpoint - Received IDs: {id}")  # Debug print
+# @rt('/checklist/{checklist_id}', methods=['PUT'])
+# async def put(req, id:list[int]):  # Add explicit parameter expectation
+#     checklist_id = int(req.path_params['checklist_id'])
+#     print(f"DEBUG: PUT endpoint - Received IDs: {id}")  # Debug print
     
-    # Update the order
-    if id:  # If we have IDs
-        with DBConnection() as cursor:
-            for i, step_id in enumerate(id):
-                cursor.execute("""
-                    UPDATE steps 
-                    SET order_index = ? 
-                    WHERE id = ? AND checklist_id = ?
-                """, (i, step_id, checklist_id))
+#     # Update the order
+#     if id:  # If we have IDs
+#         with DBConnection() as cursor:
+#             for i, step_id in enumerate(id):
+#                 cursor.execute("""
+#                     UPDATE steps 
+#                     SET order_index = ? 
+#                     WHERE id = ? AND checklist_id = ?
+#                 """, (i, step_id, checklist_id))
     
-    return render_checklist_page(checklist_id)
+#     return render_checklist_page(checklist_id)
 
 @patch
 def update(self:Checklist, title=None, description=None, description_long=None):
