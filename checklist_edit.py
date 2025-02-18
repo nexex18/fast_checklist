@@ -21,8 +21,6 @@ def update_steps_order(checklist_id: int, step_ids: list):
             """, (i, int(step_id), checklist_id))
     return True
 
-
-
 def db_update_step(checklist_id: int, step_id: int, **updates):
     """Update step fields in database and return updated step"""
     if not updates:
@@ -53,7 +51,6 @@ def db_update_step(checklist_id: int, step_id: int, **updates):
         """, (step_id, checklist_id))
         return AttrDict(cursor.fetchone())
 
-
 def get_step_reference(step_id: int):
     """Get reference URL for a step"""
     with DBConnection() as cursor:
@@ -64,7 +61,6 @@ def get_step_reference(step_id: int):
         """, (step_id,))
         row = cursor.fetchone()
         return AttrDict(row) if row else None
-
 
 def update_step_reference(step_id: int, url: str, type_id: int = 1):
     """Create or update a reference URL for a step"""
@@ -86,9 +82,6 @@ def update_step_reference(step_id: int, url: str, type_id: int = 1):
         row = cursor.fetchone()
         return AttrDict(row) if row else None
 
-
-
-
 def get_step(step_id: int, checklist_id: int = None):
     """Get a single step with its reference"""
     with DBConnection() as cursor:
@@ -109,7 +102,6 @@ def get_step(step_id: int, checklist_id: int = None):
         row = cursor.fetchone()
         return AttrDict(row) if row else None
 
-
 def validate_url(url: str) -> tuple[bool, str]:
     """Validate URL and return (is_valid, error_message)"""
     if not url:
@@ -124,6 +116,27 @@ def validate_url(url: str) -> tuple[bool, str]:
     except Exception as e:
         return False, f"Invalid URL format: {str(e)}"
 
+
+def update_checklist_field(checklist_id: int, field_name: str, value: str):
+    """Update a single field in the checklist and return the updated checklist"""
+    allowed_fields = {'title', 'description', 'description_long'}
+    
+    if field_name not in allowed_fields:
+        return None
+        
+    with DBConnection() as cursor:
+        cursor.execute(f"""
+            UPDATE checklists 
+            SET {field_name} = ?
+            WHERE id = ?
+        """, (value, checklist_id))
+        
+        # Get updated checklist
+        cursor.execute("""
+            SELECT * FROM checklists 
+            WHERE id = ?
+        """, (checklist_id,))
+        return AttrDict(cursor.fetchone())
 
 
 # UI Components - rendering functions
@@ -220,15 +233,10 @@ def render_checklist_edit(checklist):
         # Header
         render_checklist_header(checklist.id),
         
-        # Main Form
-        Form(
-            render_checklist_title_section(checklist.id),
-            *render_checklist_details(checklist),  # Added asterisk to unpack the list
-            render_sortable_steps(checklist),
-            render_submit_button(checklist.id),
-            id="edit-checklist-form",
-            cls="uk-form-stacked"
-        ),
+        # Main Content
+        render_checklist_title_section(checklist.id),
+        render_checklist_details(checklist),
+        render_sortable_steps(checklist),
         
         SortableJS('.sortable', ghost_class='blue-background-class'),
         render_new_step_modal(checklist.id, len(checklist.steps)),
@@ -264,7 +272,6 @@ def render_step_text(step, checklist_id):
         id=f"step-text-{step.id}"
     )
 
-
 def render_step_reference(step, checklist_id, error=None):
     """Render reference input with error handling"""
     ref = get_step_reference(step.id)
@@ -288,9 +295,6 @@ def render_step_reference(step, checklist_id, error=None):
         id=f"step-ref-{step.id}",  # Add an ID for targeting
         cls="uk-margin-small"
     )
-
-
-
 
 def render_step_item(step, checklist_id, step_number):
     print(f"DEBUG: Rendering step item - ID: {step.id}, Order: {step.order_index}")
@@ -335,3 +339,52 @@ def render_sortable_steps(checklist):
         hx_post=f'/checklist/{checklist.id}/reorder-steps',
         hx_trigger="end"
     )
+
+
+def render_checklist_field(checklist_id, field_name, value, label, input_type="input"):
+    """Render a single auto-saving field"""
+    field_id = f"checklist-field-{checklist_id}-{field_name}"
+    form_field_name = f"{field_name}_text"  # Matches what route will look for
+    
+    input_comp = (LabelTextArea(label, 
+                               id=field_id,
+                               name=form_field_name,  # Consistent naming
+                               value=value,
+                               cls="uk-width-1-1") 
+                  if input_type == "textarea" 
+                  else LabelInput(label, 
+                                id=field_id,
+                                name=form_field_name,  # Consistent naming
+                                value=value,
+                                cls="uk-width-1-1"))
+    
+    return Div(
+        Form(
+            input_comp,
+            Hidden(name="field_name", value=field_name),  # Added to help route handler
+            **{
+                'hx-put': f'/checklist/{checklist_id}/field/{field_name}',
+                'hx-trigger': 'change',
+                'hx-target': f'#{field_id}',
+                'hx-swap': 'outerHTML'
+            }
+        ),
+        cls="uk-margin-small",
+        id=field_id
+    )
+
+
+
+def render_checklist_details(checklist):
+    """Render the auto-saving checklist detail fields"""
+    return Div(
+        render_checklist_field(checklist.id, "title", checklist.title, "Title"),
+        render_checklist_field(checklist.id, "description", checklist.description, "Description"),
+        render_checklist_field(checklist.id, "description_long", checklist.description_long, 
+                             "Long Description", "textarea"),
+        cls="uk-form-stacked uk-margin-medium-bottom"
+    )
+
+
+
+

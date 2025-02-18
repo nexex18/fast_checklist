@@ -5,7 +5,7 @@ from checklist_list import render_main_page, get_checklist_with_steps, render_ch
 from checklist_edit import (
     render_checklist_edit, render_sortable_steps, render_step_item, 
     render_step_text, render_step_reference, db_update_step,
-    get_step, get_step_reference, update_step_reference, validate_url
+    get_step, get_step_reference, update_step_reference, validate_url,update_checklist_field, render_checklist_field, render_checklist_details
 )
 
 from instance_functions import (
@@ -141,9 +141,6 @@ def get(req):
         return Div("Checklist not found", cls="uk-alert uk-alert-danger")
     return render_checklist_edit(checklist)
 
-
-
-
 @rt('/checklist/{checklist_id}/step', methods=['POST'])
 async def post(req):
     """Create a new step and optionally its reference"""
@@ -198,11 +195,6 @@ async def post(req):
             cursor.execute("ROLLBACK")
             return f"Error creating step: {str(e)}", 500
 
-
-
-
-
-
 @rt('/checklist/{checklist_id}/step/{step_id}', methods=['DELETE'])
 async def delete(req):
     checklist_id = int(req.path_params['checklist_id'])
@@ -245,8 +237,6 @@ async def post(req, id:list[int]):
     checklist = get_checklist_with_steps(checklist_id)
     return render_sortable_steps(checklist)
 
-
-
 @rt('/checklist/{checklist_id}/step/{step_id}', methods=['PUT'])
 async def put(req):
     """Handle individual step updates (text changes only)"""
@@ -279,28 +269,6 @@ async def put(req):
     except Exception as e:
         print(f"Unexpected error: {e}")
         return "Server error", 500
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ### Instance related routes
 @rt('/instances/{checklist_id}')
@@ -338,7 +306,6 @@ async def put(req):
     
     return "Error updating step status", 400
 
-
 @rt('/step/{step_id}/reference', methods=['PUT'])
 async def put(req, step_id: int):
     """Handle reference URL updates"""
@@ -365,4 +332,43 @@ async def put(req, step_id: int):
     print(f"DEBUG: Updated reference result: {dict(ref) if ref else None}")
     
     return render_step_reference(step, None)
+
+
+@rt('/checklist/{checklist_id}/field/{field_name}', methods=['PUT'])
+async def put(req):
+    """Handle individual field updates"""
+    try:
+        checklist_id = int(req.path_params['checklist_id'])
+        field_name = req.path_params['field_name']
+        form = await req.form()
+        
+        # Process form data - similar to step text pattern
+        updates = {}
+        form_field_name = f"{field_name}_text"  # Matches render function
+        
+        if form_field_name in form:
+            new_value = form[form_field_name].strip()
+            if new_value != '':  # Only update if there's actual text
+                updates[field_name] = new_value
+        
+        if not updates:
+            return "No valid updates provided", 400
+            
+        # Update and get refreshed checklist
+        checklist = update_checklist_field(checklist_id, field_name, updates[field_name])
+        if not checklist:
+            return "Field update failed", 404
+        
+        # Return the updated field component
+        return render_checklist_field(
+            checklist.id, 
+            field_name,
+            getattr(checklist, field_name),
+            field_name.replace('_', ' ').title(),
+            "textarea" if field_name == "description_long" else "input"
+        )
+            
+    except Exception as e:
+        print(f"Error updating field: {e}")
+        return "Server error", 500
 
