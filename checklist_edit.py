@@ -146,7 +146,8 @@ def render_checklist_header(checklist_id):
         A("← Back", 
           cls="uk-link-text", 
           **{'hx-get': f'/checklist/{checklist_id}', 
-             'hx-target': '#main-content'}),
+             'hx-target': '#main-content',
+             'hx-push-url': 'true'}),
         cls="uk-margin-bottom"
     )
 

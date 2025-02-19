@@ -6,6 +6,8 @@ from fastcore.basics import AttrDict
 from db_connection import DBConnection
 
 from models import Checklist
+from checklist_list import get_checklist_with_steps
+
 
 # Your instance functions here...
 
@@ -204,7 +206,24 @@ def render_instances(checklist_id=None, status=None):
     """Render instances view with optional filtering"""
     instances = get_filtered_instances(checklist_id, status)
     
+    # Get checklist details if checklist_id is provided
+    header_content = []
+    if checklist_id:
+        checklist = get_checklist_with_steps(checklist_id)
+        header_content = [
+            Div(
+                A("← Back to Checklist", 
+                  cls="uk-link-text", 
+                  **{'hx-get': f'/checklist/{checklist_id}', 
+                     'hx-target': '#main-content',
+                     'hx-push-url': 'true'}),
+                H2(checklist.title, cls="uk-heading-small uk-margin-remove-bottom"),
+                cls="uk-margin-small-bottom"
+            )
+        ]
+    
     return Div(
+        *header_content,  # Include header content if it exists
         # Header section with title and new button
         Div(
             H2("Instances", cls="uk-heading-medium uk-margin-remove"),
@@ -217,7 +236,7 @@ def render_instances(checklist_id=None, status=None):
             cls="uk-flex uk-flex-middle uk-flex-between uk-margin-medium-bottom"
         ),
         
-        # Existing instances table
+        # Rest of the function remains the same...
         Table(
             Thead(
                 Tr(
@@ -274,25 +293,28 @@ def render_instances(checklist_id=None, status=None):
         cls="uk-container uk-margin-top"
     )
 
+
+
 def render_instance_view(instance_id):
     instance = get_instance_with_steps(instance_id)
     if not instance:
         return Div("Instance not found", cls="uk-alert uk-alert-danger")
     
     return Div(
-        # Header stays the same
+        # Header with updated back button
         Div(
             A("← Back to Checklist", 
               cls="uk-link-text", 
               **{'hx-get': f'/checklist/{instance.checklist_id}/instances', 
-                 'hx-target': '#main-content'}),
+                 'hx-target': '#main-content',
+                 'hx-push-url': 'true'}),
             H2(instance.name, cls="uk-heading-small uk-margin-remove-bottom"),
             P(f"From checklist: {instance.checklist_title}", 
               cls="uk-text-meta uk-margin-remove-top"),
             cls="uk-margin-bottom"
         ),
         
-        # Updated steps list with save buttons
+        # Steps list with save buttons
         Div(*(
             Div(
                 Div(
@@ -325,3 +347,4 @@ def render_instance_view(instance_id):
         id="main-content",
         cls="uk-container uk-margin-top"
     )
+
