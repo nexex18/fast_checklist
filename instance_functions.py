@@ -33,13 +33,15 @@ def get_instance_with_steps(instance_id):
                 i_steps.notes,
                 i_steps.updated_at,
                 s.text as step_text,
-                s.reference_material,
+                sr.url as reference_url,
                 s.order_index
             FROM instance_steps i_steps
             JOIN steps s ON i_steps.step_id = s.id
+            LEFT JOIN step_references sr ON s.id = sr.step_id
             WHERE i_steps.instance_id = ?
             ORDER BY s.order_index
         """, (instance_id,))
+
         steps = cursor.fetchall()
         
         return AttrDict(
@@ -96,30 +98,6 @@ def get_filtered_instances(checklist_id=None, status=None):
         instances = cursor.fetchall()
         return [AttrDict(dict(instance)) for instance in instances]
 
-def create_instance_modal(checklist_id):
-    """Create the modal for new instance creation"""
-    return Modal(
-        ModalTitle("Create New Instance"),
-        ModalBody(
-            Form(
-                LabelInput("Name", id="name", placeholder="Instance Name", required=True),
-                LabelTextArea("Description", id="description", placeholder="Optional description"),
-                LabelInput("Target Date", id="target_date", type="date"),
-                Hidden(id="checklist_id", value=str(checklist_id)),
-                action=f"/instance/create",
-                method="POST",
-                id="new-instance-form"
-            )
-        ),
-        footer=DivRAligned(
-            ModalCloseButton("Cancel", cls=ButtonT.default),
-            Button("Create", 
-                  cls=ButtonT.primary, 
-                  type="submit",
-                  form="new-instance-form")
-        ),
-        id='new-instance-modal'
-    )
 
 def create_new_instance(checklist_id, name, description=None, target_date=None):
     """Create a new instance and its steps from a checklist"""
@@ -166,52 +144,61 @@ def update_instance_step_status(step_id, new_status):
         """, (new_status, step_id))
         return cursor.rowcount > 0
 
-def get_instance_with_steps(instance_id):
-    """Get a complete instance with all its steps and related information"""
-    with DBConnection() as cursor:
-        # Get instance details
-        cursor.execute("""
-            SELECT ci.*, c.title as checklist_title, c.id as checklist_id
-            FROM checklist_instances ci
-            JOIN checklists c ON ci.checklist_id = c.id
-            WHERE ci.id = ?
-        """, (instance_id,))
-        instance = cursor.fetchone()
-        
-        if not instance:
-            return None
-            
-        # Get steps with their original text and current status
-        cursor.execute("""
-            SELECT 
-                i_steps.id as instance_step_id,
-                i_steps.status,
-                i_steps.notes,
-                i_steps.updated_at,
-                s.text as step_text,
-                s.reference_material,
-                s.order_index
-            FROM instance_steps i_steps
-            JOIN steps s ON i_steps.step_id = s.id
-            WHERE i_steps.instance_id = ?
-            ORDER BY s.order_index
-        """, (instance_id,))
-        steps = cursor.fetchall()
-        
-        return AttrDict(
-            id=instance['id'],
-            checklist_id=instance['checklist_id'],  # Added this line
-            name=instance['name'],
-            description=instance['description'],
-            status=instance['status'],
-            created_at=instance['created_at'],
-            target_date=instance['target_date'],
-            checklist_title=instance['checklist_title'],
-            steps=[AttrDict(dict(step)) for step in steps]
-        )
+
+def create_instance_modal(checklist_id):
+    """Create the modal for new instance creation"""
+    return Modal(
+        ModalTitle("Create New Instance"),
+        ModalBody(
+            Form(
+                LabelInput("Name", id="name", placeholder="Instance Name", required=True),
+                LabelTextArea("Description", id="description", placeholder="Optional description"),
+                LabelInput("Target Date", id="target_date", type="date"),
+                action=f"/checklist/{checklist_id}/instance/create",
+                method="POST",
+                id="new-instance-form"
+            )
+        ),
+        footer=DivRAligned(
+            ModalCloseButton("Cancel", cls=ButtonT.default),
+            Button("Create", 
+                  cls=ButtonT.primary, 
+                  type="submit",
+                  form="new-instance-form")
+        ),
+        id='new-instance-modal'
+    )
+
+
 
 
 # Render functions
+
+def render_instance_step(step):
+    """Render a single instance step with consistent styling"""
+    return Div(
+        P(step.step_text, cls="uk-margin-remove uk-flex-1"),
+        Form(
+            Select(
+                Option("Not Started", selected=step.status=="Not Started"),
+                Option("In Progress", selected=step.status=="In Progress"),
+                Option("Completed", selected=step.status=="Completed"),
+                cls="uk-select uk-form-small uk-width-small uk-margin-right",
+                name="status"
+            ),
+            Button("Save",
+                  cls="uk-button uk-button-small uk-button-primary",
+                  type="submit"),
+            cls="uk-flex uk-flex-middle",
+            **{
+                'hx-put': f'/instance-step/{step.id}/status',
+                'hx-target': f'#step-container-{step.id}'
+            }
+        ),
+        cls="uk-flex uk-flex-middle uk-flex-between",
+        id=f'step-container-{step.id}'
+    )
+
 
 def render_instances(checklist_id=None, status=None):
     """Render instances view with optional filtering"""
@@ -269,7 +256,7 @@ def render_instances(checklist_id=None, status=None):
                         A("Continue", 
                           cls="uk-button uk-button-small uk-button-primary",
                           **{
-                              'hx-get': f'/instance/{instance.id}',
+                              'hx-get': f'/checklist/{instance.checklist_id}/instance/{instance.id}',
                               'hx-target': '#main-content',
                               'hx-push-url': 'true'
                           })
@@ -297,7 +284,7 @@ def render_instance_view(instance_id):
         Div(
             A("← Back to Checklist", 
               cls="uk-link-text", 
-              **{'hx-get': f'/checklist/{instance.checklist_id}', 
+              **{'hx-get': f'/checklist/{instance.checklist_id}/instances', 
                  'hx-target': '#main-content'}),
             H2(instance.name, cls="uk-heading-small uk-margin-remove-bottom"),
             P(f"From checklist: {instance.checklist_title}", 
@@ -323,58 +310,7 @@ def render_instance_view(instance_id):
                               type="submit"),
                         cls="uk-flex uk-flex-middle",
                         **{
-                            'hx-put': f'/instance-step/{step.instance_step_id}/status',
-                            'hx-target': 'closest div'
-                        }
-                    ),
-                    cls="uk-flex uk-flex-middle uk-flex-between"
-                ),
-                cls="uk-margin-medium-bottom uk-padding-small uk-box-shadow-small"
-            )
-            for step in instance.steps
-        )),
-        
-        id="main-content",
-        cls="uk-container uk-margin-top"
-    )
-
-def render_instance_view_two(instance_id):
-    instance = get_instance_with_steps(instance_id)
-    if not instance:
-        return Div("Instance not found", cls="uk-alert uk-alert-danger")
-    
-    return Div(
-        # Header stays the same
-        Div(
-            A("← Back to Checklist", 
-              cls="uk-link-text", 
-              **{'hx-get': f'/checklist/{instance.checklist_id}', 
-                 'hx-target': '#main-content'}),
-            H2(instance.name, cls="uk-heading-small uk-margin-remove-bottom"),
-            P(f"From checklist: {instance.checklist_title}", 
-              cls="uk-text-meta uk-margin-remove-top"),
-            cls="uk-margin-bottom"
-        ),
-        
-        # Updated steps list with save buttons
-        Div(*(
-            Div(
-                Div(
-                    P(step.step_text, cls="uk-margin-remove uk-flex-1"),
-                    Form(
-                        Select(
-                            Option("Not Started", selected=step.status=="Not Started"),
-                            Option("In Progress", selected=step.status=="In Progress"),
-                            Option("Completed", selected=step.status=="Completed"),
-                            cls="uk-select uk-form-small uk-width-small uk-margin-right",
-                            name="status"
-                        ),
-                        Button("Save",
-                              cls="uk-button uk-button-small uk-button-primary",
-                              type="submit"),
-                        cls="uk-flex uk-flex-middle",
-                        **{
-                            'hx-put': f'/instance-step/{step.instance_step_id}/status',
+                            'hx-put': f'/checklist/{instance.checklist_id}/instance/{instance.id}/step/{step.instance_step_id}/status',
                             'hx-target': f'#step-container-{step.instance_step_id}'
                         }
                     ),
@@ -389,77 +325,3 @@ def render_instance_view_two(instance_id):
         id="main-content",
         cls="uk-container uk-margin-top"
     )
-
-def render_instance_step(step):
-    """Render a single instance step with consistent styling"""
-    return Div(
-        P(step.step_text, cls="uk-margin-remove uk-flex-1"),
-        Form(
-            Select(
-                Option("Not Started", selected=step.status=="Not Started"),
-                Option("In Progress", selected=step.status=="In Progress"),
-                Option("Completed", selected=step.status=="Completed"),
-                cls="uk-select uk-form-small uk-width-small uk-margin-right",
-                name="status"
-            ),
-            Button("Save",
-                  cls="uk-button uk-button-small uk-button-primary",
-                  type="submit"),
-            cls="uk-flex uk-flex-middle",
-            **{
-                'hx-put': f'/instance-step/{step.id}/status',
-                'hx-target': f'#step-container-{step.id}'
-            }
-        ),
-        cls="uk-flex uk-flex-middle uk-flex-between",
-        id=f'step-container-{step.id}'
-    )
-
-def render_instance_view(instance_id):
-    """Render a single instance view with basic step status management"""
-    instance = get_instance_with_steps(instance_id)
-    if not instance:
-        return Div("Instance not found", cls="uk-alert uk-alert-danger")
-    
-    return Div(
-        # Header with instance info and parent checklist link
-        Div(
-            A("← Back to Checklist", 
-              cls="uk-link-text", 
-              **{'hx-get': f'/checklist/{instance.checklist_id}', 
-                 'hx-target': '#main-content'}),
-            H2(instance.name, cls="uk-heading-small uk-margin-remove-bottom"),
-            P(f"From checklist: {instance.checklist_title}", 
-              cls="uk-text-meta uk-margin-remove-top"),
-            cls="uk-margin-bottom"
-        ),
-        
-        # Steps list
-        Div(*(
-            Div(
-                # Step text and status in a flex container
-                Div(
-                    P(step.step_text, cls="uk-margin-remove uk-flex-1"),
-                    Select(
-                        Option("Not Started", selected=step.status=="Not Started"),
-                        Option("In Progress", selected=step.status=="In Progress"),
-                        Option("Completed", selected=step.status=="Completed"),
-                        cls="uk-select uk-form-small uk-width-small",
-                        **{
-                            'hx-put': f'/instance-step/{step.instance_step_id}/status',
-                            'hx-target': 'closest div'
-                        }
-                    ),
-                    cls="uk-flex uk-flex-middle uk-flex-between"
-                ),
-                cls="uk-margin-medium-bottom uk-padding-small uk-box-shadow-small"
-            )
-            for step in instance.steps
-        )),
-        
-        id="main-content",
-        cls="uk-container uk-margin-top"
-    )
-
-
-  

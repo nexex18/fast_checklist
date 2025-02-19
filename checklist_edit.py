@@ -178,16 +178,6 @@ def render_checklist_details(checklist):
                      cls="uk-margin-small")
     ]
 
-# def render_submit_button(checklist_id):
-#     return Button(
-#         "Save Changes", 
-#         cls="uk-button uk-button-primary uk-margin-top",
-#         **{
-#             'hx-put': f'/checklist/{checklist_id}',
-#             'hx-target': '#main-content',
-#             'hx-include': '.sortable *'  # Include all elements inside sortable
-#         }
-#     )
 
 def render_new_step_modal(checklist_id, current_step_count):
     return Modal(
@@ -245,6 +235,7 @@ def render_checklist_edit(checklist):
         cls="uk-margin",
         id="main-content"
     )
+
 
 def render_step_text(step, checklist_id):
     """Render just the text input portion"""

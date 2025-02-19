@@ -10,7 +10,7 @@ from checklist_edit import (
 )
 
 from instance_functions import (
-    render_instances, render_instance_view_two, create_new_instance,
+    render_instances, render_instance_view, create_new_instance,
     update_instance_step_status, get_instance_step, render_instance_step
 )
 
@@ -88,23 +88,6 @@ async def delete(req):
     if checklist:
         checklist.delete()
     return render_main_page()
-
-# @rt('/checklist/{checklist_id}', methods=['PUT'])
-# async def put(req, id:list[int]):  # Add explicit parameter expectation
-#     checklist_id = int(req.path_params['checklist_id'])
-#     print(f"DEBUG: PUT endpoint - Received IDs: {id}")  # Debug print
-    
-#     # Update the order
-#     if id:  # If we have IDs
-#         with DBConnection() as cursor:
-#             for i, step_id in enumerate(id):
-#                 cursor.execute("""
-#                     UPDATE steps 
-#                     SET order_index = ? 
-#                     WHERE id = ? AND checklist_id = ?
-#                 """, (i, step_id, checklist_id))
-    
-#     return render_checklist_page(checklist_id)
 
 @patch
 def update(self:Checklist, title=None, description=None, description_long=None):
@@ -207,6 +190,72 @@ async def delete(req):
     
     return render_checklist_edit(get_checklist_with_steps(checklist_id))
 
+
+
+
+@rt('/step/{step_id}/reference', methods=['PUT'])
+async def put(req, step_id: int):
+    """Handle reference URL updates"""
+    form = await req.form()
+    url = form.get('url', '').strip()
+    print(f"DEBUG: Received form data: {dict(form)}")
+    print(f"DEBUG: Parsed URL: '{url}'")
+    
+    # Get step first to ensure it exists
+    step = get_step(step_id)
+    if not step:
+        print(f"DEBUG: Step {step_id} not found")
+        return render_step_reference(step, None, error="Step not found")
+        
+    # Validate URL
+    is_valid, error = validate_url(url)
+    print(f"DEBUG: URL validation - Valid: {is_valid}, Error: {error}")
+    
+    if not is_valid:
+        return render_step_reference(step, None, error=error)
+        
+    # Update reference
+    ref = update_step_reference(step_id, url)
+    print(f"DEBUG: Updated reference result: {dict(ref) if ref else None}")
+    
+    return render_step_reference(step, None)
+
+@rt('/checklist/{checklist_id}/field/{field_name}', methods=['PUT'])
+async def put(req):
+    """Handle individual field updates"""
+    try:
+        checklist_id = int(req.path_params['checklist_id'])
+        field_name = req.path_params['field_name']
+        form = await req.form()
+        
+        # Get form field value using the same pattern as render function
+        input_id = f"{field_name}_text"
+        if input_id not in form:
+            return "Missing field value", 400
+            
+        new_value = form[input_id].strip()
+        if not new_value:
+            return "Empty value not allowed", 400
+            
+        # Update and get refreshed checklist
+        checklist = update_checklist_field(checklist_id, field_name, new_value)
+        if not checklist:
+            return "Update failed", 404
+            
+        # Return the updated field component
+        return render_checklist_field(
+            checklist.id, 
+            field_name,
+            getattr(checklist, field_name),
+            field_name.replace('_', ' ').title(),
+            "textarea" if field_name == "description_long" else "input"
+        )
+            
+    except Exception as e:
+        print(f"Error updating field: {e}")
+        return "Server error", 500
+
+
 # Route handler for reordering (for completeness)
 @rt('/checklist/{checklist_id}/reorder-steps', methods=['POST'])
 async def post(req, id:list[int]):
@@ -272,20 +321,21 @@ async def put(req):
         return "Server error", 500
 
 ### Instance related routes
-@rt('/instances/{checklist_id}')
+@rt('/checklist/{checklist_id}/instances')
 def get(req):
     checklist_id = int(req.path_params['checklist_id'])
     return render_instances(checklist_id=checklist_id)
 
-@rt('/instance/{instance_id}')
+@rt('/checklist/{checklist_id}/instance/{instance_id}')
 def get(req):
+    checklist_id = int(req.path_params['checklist_id'])
     instance_id = int(req.path_params['instance_id'])
-    return render_instance_view_two(instance_id)
+    return render_instance_view(instance_id)
 
-@rt('/instance/create')
+@rt('/checklist/{checklist_id}/instance/create')
 async def post(req):
+    checklist_id = int(req.path_params['checklist_id'])
     form = await req.form()
-    checklist_id = int(form['checklist_id'])
     instance_id = create_new_instance(
         checklist_id=checklist_id,
         name=form['name'],
@@ -294,8 +344,10 @@ async def post(req):
     )
     return render_instances(checklist_id=checklist_id)
 
-@rt('/instance-step/{step_id}/status', methods=['PUT'])
+@rt('/checklist/{checklist_id}/instance/{instance_id}/step/{step_id}/status', methods=['PUT'])
 async def put(req):
+    checklist_id = int(req.path_params['checklist_id'])
+    instance_id = int(req.path_params['instance_id'])
     step_id = int(req.path_params['step_id'])
     form = await req.form()
     new_status = form.get('status')
@@ -307,65 +359,3 @@ async def put(req):
     
     return "Error updating step status", 400
 
-@rt('/step/{step_id}/reference', methods=['PUT'])
-async def put(req, step_id: int):
-    """Handle reference URL updates"""
-    form = await req.form()
-    url = form.get('url', '').strip()
-    print(f"DEBUG: Received form data: {dict(form)}")
-    print(f"DEBUG: Parsed URL: '{url}'")
-    
-    # Get step first to ensure it exists
-    step = get_step(step_id)
-    if not step:
-        print(f"DEBUG: Step {step_id} not found")
-        return render_step_reference(step, None, error="Step not found")
-        
-    # Validate URL
-    is_valid, error = validate_url(url)
-    print(f"DEBUG: URL validation - Valid: {is_valid}, Error: {error}")
-    
-    if not is_valid:
-        return render_step_reference(step, None, error=error)
-        
-    # Update reference
-    ref = update_step_reference(step_id, url)
-    print(f"DEBUG: Updated reference result: {dict(ref) if ref else None}")
-    
-    return render_step_reference(step, None)
-
-
-@rt('/checklist/{checklist_id}/field/{field_name}', methods=['PUT'])
-async def put(req):
-    """Handle individual field updates"""
-    try:
-        checklist_id = int(req.path_params['checklist_id'])
-        field_name = req.path_params['field_name']
-        form = await req.form()
-        
-        # Get form field value using the same pattern as render function
-        input_id = f"{field_name}_text"
-        if input_id not in form:
-            return "Missing field value", 400
-            
-        new_value = form[input_id].strip()
-        if not new_value:
-            return "Empty value not allowed", 400
-            
-        # Update and get refreshed checklist
-        checklist = update_checklist_field(checklist_id, field_name, new_value)
-        if not checklist:
-            return "Update failed", 404
-            
-        # Return the updated field component
-        return render_checklist_field(
-            checklist.id, 
-            field_name,
-            getattr(checklist, field_name),
-            field_name.replace('_', ' ').title(),
-            "textarea" if field_name == "description_long" else "input"
-        )
-            
-    except Exception as e:
-        print(f"Error updating field: {e}")
-        return "Server error", 500

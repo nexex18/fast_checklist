@@ -14,8 +14,8 @@ from checklist_list import (checklist_row, create_checklist_modal, get_checklist
                           render_steps, render_checklist_page, checklist_table, render_main_page)
 from instance_functions import (get_instance_with_steps, get_filtered_instances, create_instance_modal,
                               create_new_instance, get_instance_step, update_instance_step_status,
-                              render_instances, render_instance_view, render_instance_view_two,
-                              render_instance_step)
+                              render_instances, render_instance_view, render_instance_step)
+
 
 from checklist_edit import (render_checklist_edit, render_new_step_modal, render_checklist_header,
                           render_checklist_details, render_checklist_title_section, render_sortable_steps,

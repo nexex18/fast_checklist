@@ -42,7 +42,7 @@ def checklist_row(checklist):
                 A("Instances",
                   cls='uk-link-text uk-text-success',
                   **{
-                      'hx-get': f'/instances/{checklist.id}',
+                      'hx-get': f'/checklist/{checklist.id}/instances',  # This is the changed line
                       'hx-target': '#main-content',
                       'hx-push-url': 'true'
                   }),
