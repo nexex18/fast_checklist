@@ -21,6 +21,50 @@ def update_steps_order(checklist_id: int, step_ids: list):
             """, (i, int(step_id), checklist_id))
     return True
 
+
+def create_new_step(checklist_id: int, text: str, position: int, reference_url: str = None) -> tuple[int, str | None]:
+    """Create a new step and its reference if provided
+    Returns: (step_id, error_message)"""
+    with DBConnection() as cursor:
+        try:
+            cursor.execute("BEGIN")
+            
+            # Shift existing steps to make room
+            cursor.execute("""
+                UPDATE steps 
+                SET order_index = order_index + 1
+                WHERE checklist_id = ? AND order_index >= ?
+            """, (checklist_id, position - 1))
+            
+            # Insert step
+            cursor.execute("""
+                INSERT INTO steps (checklist_id, text, status, order_index)
+                VALUES (?, ?, ?, ?)
+            """, (checklist_id, text, 'Not Started', position - 1))
+            
+            step_id = cursor.lastrowid
+            
+            # Handle reference if provided
+            ref_error = None
+            if reference_url:
+                is_valid, error = validate_url(reference_url)
+                if is_valid:
+                    cursor.execute("""
+                        INSERT INTO step_references (step_id, url, type_id)
+                        VALUES (?, ?, ?)
+                    """, (step_id, reference_url, 1))
+                else:
+                    ref_error = error
+            
+            cursor.execute("COMMIT")
+            return step_id, ref_error
+            
+        except Exception as e:
+            cursor.execute("ROLLBACK")
+            raise
+
+
+
 def db_update_step(checklist_id: int, step_id: int, **updates):
     """Update step fields in database and return updated step"""
     if not updates:
@@ -50,6 +94,10 @@ def db_update_step(checklist_id: int, step_id: int, **updates):
             WHERE id = ? AND checklist_id = ?
         """, (step_id, checklist_id))
         return AttrDict(cursor.fetchone())
+
+
+
+
 
 def get_step_reference(step_id: int):
     """Get reference URL for a step"""
@@ -189,11 +237,6 @@ def render_new_step_modal(checklist_id, current_step_count):
                           id="step_text",
                           placeholder="Enter step description",
                           cls="uk-margin-small"),
-                LabelSelect(label="Status",  # Fixed: added 'label=' keyword
-                           id="step_status",
-                           options=['Not Started', 'In Progress', 'Completed'],
-                           value='Not Started',
-                           cls="uk-margin-small"),
                 LabelInput(label="Reference Link",
                           id="step_ref",
                           placeholder="Optional reference URL",
@@ -207,7 +250,10 @@ def render_new_step_modal(checklist_id, current_step_count):
                           cls="uk-margin-small"),
                 action=f"/checklist/{checklist_id}/step",
                 method="POST",
-                id="new-step-form"
+                id="new-step-form",
+                **{
+                    'hx-push-url': f'/checklist/{checklist_id}/edit'  # Add this line
+                }
             )
         ),
         footer=DivRAligned(

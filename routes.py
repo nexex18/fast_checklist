@@ -6,8 +6,10 @@ from checklist_list import render_main_page, get_checklist_with_steps, render_ch
 from checklist_edit import (
     render_checklist_edit, render_sortable_steps, render_step_item, 
     render_step_text, render_step_reference, db_update_step,
-    get_step, get_step_reference, update_step_reference, validate_url,update_checklist_field, render_checklist_field, render_checklist_details
+    get_step, get_step_reference, update_step_reference, validate_url,
+    create_new_step  # Add this line
 )
+
 
 from instance_functions import (
     render_instances, render_instance_view, create_new_instance,
@@ -125,59 +127,38 @@ def get(req):
         return Div("Checklist not found", cls="uk-alert uk-alert-danger")
     return render_checklist_edit(checklist)
 
+
+
 @rt('/checklist/{checklist_id}/step', methods=['POST'])
 async def post(req):
     """Create a new step and optionally its reference"""
     checklist_id = int(req.path_params['checklist_id'])
     form = await req.form()
     
-    with DBConnection() as cursor:
-        try:
-            cursor.execute("BEGIN")
+    try:
+        # Get form data
+        position = int(form.get('step_position', 1))
+        text = form.get('step_text', 'New Step')
+        reference_url = form.get('step_ref', '').strip()
+        
+        # Create step using the new function
+        step_id, ref_error = create_new_step(
+            checklist_id=checklist_id,
+            text=text,
+            position=position,
+            reference_url=reference_url if reference_url else None
+        )
+        
+        # Get updated checklist for rendering
+        checklist = get_checklist_with_steps(checklist_id)
+        if ref_error:
+            return render_checklist_edit(checklist), f"Step created but reference invalid: {ref_error}", 400
+        return render_checklist_edit(checklist)
             
-            # Get next order index
-            cursor.execute("""
-                SELECT COALESCE(MAX(order_index), -1) + 1
-                FROM steps WHERE checklist_id = ?
-            """, (checklist_id,))
-            next_order = cursor.fetchone()[0]
-            
-            # Insert step
-            cursor.execute("""
-                INSERT INTO steps (checklist_id, text, status, order_index)
-                VALUES (?, ?, ?, ?)
-            """, (
-                checklist_id,
-                form.get('step_text', 'New Step'),
-                form.get('step_status', 'Not Started'),
-                next_order
-            ))
-            
-            step_id = cursor.lastrowid
-            ref_error = None
-            
-            # Handle reference if provided
-            if ref_url := form.get('step_ref', '').strip():
-                is_valid, error = validate_url(ref_url)
-                if is_valid:
-                    cursor.execute("""
-                        INSERT INTO step_references (step_id, url, type_id)
-                        VALUES (?, ?, ?)
-                    """, (step_id, ref_url, 1))
-                else:
-                    ref_error = error
-            
-            cursor.execute("COMMIT")
-            
-            # Get updated checklist for rendering
-            checklist = get_checklist_with_steps(checklist_id)
-            if ref_error:
-                return render_checklist_edit(checklist), f"Step created but reference invalid: {ref_error}", 400
-            return render_checklist_edit(checklist)
-            
-        except Exception as e:
-            cursor.execute("ROLLBACK")
-            return f"Error creating step: {str(e)}", 500
+    except Exception as e:
+        return f"Error creating step: {str(e)}", 500
+
+
 
 @rt('/checklist/{checklist_id}/step/{step_id}', methods=['DELETE'])
 async def delete(req):
