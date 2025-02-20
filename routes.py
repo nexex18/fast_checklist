@@ -128,7 +128,6 @@ def get(req):
     return render_checklist_edit(checklist)
 
 
-
 @rt('/checklist/{checklist_id}/step', methods=['POST'])
 async def post(req):
     """Create a new step and optionally its reference"""
@@ -153,7 +152,7 @@ async def post(req):
         checklist = get_checklist_with_steps(checklist_id)
         if ref_error:
             return render_checklist_edit(checklist), f"Step created but reference invalid: {ref_error}", 400
-        return render_checklist_edit(checklist)
+        return render_sortable_steps(checklist) #render_checklist_edit(checklist)
             
     except Exception as e:
         return f"Error creating step: {str(e)}", 500

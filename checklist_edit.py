@@ -230,41 +230,55 @@ def render_checklist_details(checklist):
 
 def render_new_step_modal(checklist_id, current_step_count):
     return Modal(
-        ModalTitle("Add New Step"),
-        ModalBody(
+        Div(cls='p-6')(
+            ModalTitle("Add New Step"),
             Form(
                 LabelInput(label="Step Text", 
                           id="step_text",
+                          name="step_text",  # Added name attribute
                           placeholder="Enter step description",
                           cls="uk-margin-small"),
                 LabelInput(label="Reference Link",
                           id="step_ref",
+                          name="step_ref",    # Added name attribute
                           placeholder="Optional reference URL",
                           cls="uk-margin-small"),
                 LabelInput(label="Position",
                           id="step_position",
+                          name="step_position", # Added name attribute
                           type="number",
                           value=str(current_step_count + 1),
                           min="1",
                           max=str(current_step_count + 1),
                           cls="uk-margin-small"),
-                action=f"/checklist/{checklist_id}/step",
+                DivRAligned(
+                    ModalCloseButton("Cancel", cls=ButtonT.ghost),
+                    Button("Add Step", 
+                          cls=ButtonT.primary,
+                          type="submit",
+                          **{
+                                'uk-toggle': 'target: #new-step-modal',  # Close modal on click
+                                'hx-on::after-request': 'this.form.reset()'  # Reset form after submission
+                            }),
+                    cls="space-x-5"
+                ),
+                action=f"/checklist/{checklist_id}/step",  # Keep traditional form attributes
                 method="POST",
                 id="new-step-form",
                 **{
-                    'hx-push-url': f'/checklist/{checklist_id}/edit'  # Add this line
+                    'hx-post': f'/checklist/{checklist_id}/step',
+                    'hx-target': '#steps-list',
+                    'hx-swap': 'outerHTML',
+                    'hx-on::after-request': '''
+                        this.reset();
+                        this.querySelector("#step_position").value = parseInt(this.querySelector("#step_position").max) + 1;
+                        this.querySelector("#step_position").max = parseInt(this.querySelector("#step_position").max) + 1;
+                    '''
                 }
-            )
-        ),
-        footer=DivRAligned(
-            ModalCloseButton("Cancel", cls=ButtonT.default),
-            Button("Add Step", 
-                  cls=ButtonT.primary, 
-                  type="submit",
-                  form="new-step-form")
-        ),
+            )),
         id='new-step-modal'
     )
+
 
 def render_checklist_edit(checklist):
     """Main wrapper function that composes all components"""
