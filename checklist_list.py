@@ -181,7 +181,11 @@ def render_checklist_page(checklist_id):
     return Div(
         # Header with back button
         Div(
-            A("← Back", cls="uk-link-text", **{'hx-get': '/', 'hx-target': '#main-content'}),
+            A("← Back", 
+              cls="uk-link-text", 
+              **{'hx-get': '/', 
+                 'hx-target': '#main-content',
+                 'hx-push-url': 'true'}),
             cls="uk-margin-bottom"
         ),
         # Checklist details
