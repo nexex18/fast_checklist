@@ -157,7 +157,6 @@ def render_steps(steps):
                 Div(
                     P(
                         Span(step.text, cls="uk-text-emphasis"),
-                        Span(f" ({step.status})", cls="uk-text-muted uk-text-small"),
                         cls="uk-margin-small-bottom"
                     ),
                     P(A("Reference", href=step.reference_url)) 
@@ -166,7 +165,7 @@ def render_steps(steps):
                     cls="uk-margin-small"
                 )
             ) for step in steps
-        ), cls="uk-list uk-list-divider")
+        ), cls="uk-list uk-list-divider uk-list-none")
     )
 
 
@@ -186,17 +185,27 @@ def render_checklist_page(checklist_id):
               **{'hx-get': '/', 
                  'hx-target': '#main-content',
                  'hx-push-url': 'true'}),
-            cls="uk-margin-bottom"
+            cls="uk-margin-top"
         ),
-        # Checklist details
+
         H2(checklist.title, cls="uk-heading-small"),
-        P(checklist.description, cls="uk-text-meta"),
-        P(checklist.description_long) if checklist.description_long else "",
+        DivLAligned(
+            P(checklist.description, cls="uk-text-meta uk-margin-remove"),
+            A(UkIcon('chevron-right'), 
+            cls="uk-icon-button uk-flex uk-flex-middle uk-margin-left",
+            uk_toggle="target: #help-modal") if checklist.description_long else "",
+            cls="uk-flex uk-flex-middle"
+        ),
+        Modal(
+            ModalTitle("Additional Information"),
+            P(checklist.description_long),
+            id="help-modal"
+        ) if checklist.description_long else "",
         
         # Steps section - now using checklist.steps directly
         render_steps(checklist.steps),
         
-        cls="uk-margin",
+        cls="uk-margin uk-padding-large-left uk-large-top", 
         id="main-content"
     )
 

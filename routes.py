@@ -7,7 +7,7 @@ from checklist_edit import (
     render_checklist_edit, render_sortable_steps, render_step_item, 
     render_step_text, render_step_reference, db_update_step,
     get_step, get_step_reference, update_step_reference, validate_url,
-    create_new_step  # Add this line
+    create_new_step, update_checklist_field, render_checklist_field  # Add this line
 )
 
 
