@@ -1,18 +1,4 @@
-from httpx import get as xget, post as xpost
-import os
-from fasthtml.common import *
-from fasthtml.common import RedirectResponse as redirect
-from monsterui.all import *
-from datetime import datetime
-import argparse
-import sqlite3
-from time import sleep
-from fastcore.basics import AttrDict, patch
 
-# CLI Arguments
-parser = argparse.ArgumentParser()
-parser.add_argument('-refresh', action='store_true', help='Refresh the database on startup')
-args = parser.parse_args()
 
 
 DB_PATH = Path('data/checklists.db')
@@ -29,7 +15,7 @@ class DBConnection:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.conn.commit()
         self.conn.close()
-        
+
 def create_triggers():
     with DBConnection() as cur:
         # Drop existing triggers first
@@ -121,6 +107,20 @@ def create_triggers():
             END;
         """)
 
+import os
+from fasthtml.common import *
+from fasthtml.common import RedirectResponse as redirect
+from monsterui.all import *
+from datetime import datetime
+import argparse
+
+from fastcore.basics import AttrDict, patch
+
+
+# CLI Arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('-refresh', action='store_true', help='Refresh the database on startup')
+args = parser.parse_args()
 
 # Database Setup
 os.makedirs('data', exist_ok=True)
@@ -135,7 +135,7 @@ def clean_db():
             path = DB_PATH.parent / f"{DB_PATH.name}{ext}"
             if path.exists(): path.unlink()
 
-# Always clean for debugging
+# Always clean for now while we debug
 clean_db()
 
 if args.refresh and DB_PATH.exists():
@@ -268,11 +268,8 @@ app, rt, (checklists, _), (steps, _), (checklist_instances, _), (instance_steps,
 Step = steps.dataclass()
 Checklist = checklists.dataclass()
 StepReference = step_references.dataclass()
-Instance = checklist_instances.dataclass()
 
 create_triggers()
-
-# Initialize reference_types
 
 def add_reference_type(name, description):
     name = name.upper()
@@ -285,33 +282,118 @@ def add_reference_type(name, description):
 add_reference_type(name='URL', description='URL')
 add_reference_type(name='API', description='API endpoint')
 
-# Basic home page
 
-@rt('/')
-def get(req):
-    return Container(
-        # Header section
-        DivFullySpaced(
-            H1("Checklist Manager", cls="uk-heading-medium"),
-            P("Welcome to your checklist management system", 
-              cls=TextPresets.muted_sm)  # Using muted_sm instead of muted
-        ),
-        
-        # Main content card
-        Card(
-            DivCentered(
-                H2("Getting Started", cls="uk-heading-small"),
-                P("Your checklists and instances will appear here.", 
-                  cls=TextPresets.muted_sm),  # Changed from muted to muted_sm
-                Button("Create First Checklist", 
-                      cls=ButtonT.primary)
-            )
-        ),
-        
-        cls="uk-margin-large-top"
+# I've moved the above code 
+
+
+def _validate_checklist_exists(checklist_id):
+    """Validate checklist exists and return it, or raise ValueError"""
+    if not isinstance(checklist_id, int) or checklist_id < 1:
+        raise ValueError(f"Invalid checklist_id: {checklist_id}")
+    result = checklists(where=f"id = {checklist_id}")
+    if not result:
+        raise ValueError(f"Checklist not found: {checklist_id}")
+    return result[0]
+
+def _validate_step_exists(step_id):
+    """Validate step exists and return it, or raise ValueError"""
+    if not isinstance(step_id, int) or step_id < 1:
+        raise ValueError(f"Invalid step_id: {step_id}")
+    result = steps(where=f"id = {step_id}")
+    if not result:
+        raise ValueError(f"Step not found: {step_id}")
+    return result[0]
+
+def _get_reference_type_id(type_name):
+    """Get reference type ID, creating if needed. Return ID."""
+    type_name = type_name.upper()
+    result = reference_types(where=f"name = '{type_name}'")
+    if result:
+        return result[0].id
+    # Create new type if doesn't exist
+    return reference_types.insert(
+        name=type_name,
+        description=f"Auto-created reference type: {type_name}"
+    ).id
+
+
+def test_validation_functions():
+    # Test checklist validation
+    test_checklist = checklists.insert(
+        title="Test Checklist",
+        description="Test Description"
     )
+    
+    try:
+        # Should work
+        assert _validate_checklist_exists(test_checklist.id)
+        
+        # Should fail
+        try:
+            _validate_checklist_exists(-1)
+            assert False, "Should have failed with negative ID"
+        except ValueError:
+            pass
+            
+        try:
+            _validate_checklist_exists(999999)
+            assert False, "Should have failed with non-existent ID"
+        except ValueError:
+            pass
+    
+        # Test step validation
+        test_step = steps.insert(
+            checklist_id=test_checklist.id,
+            text="Test Step",
+            order_index=1
+        )
+        
+        # Should work
+        assert _validate_step_exists(test_step.id)
+        
+        # Should fail
+        try:
+            _validate_step_exists(-1)
+            assert False, "Should have failed with negative ID"
+        except ValueError:
+            pass
+            
+        # Test reference type
+        type_id1 = _get_reference_type_id("TEST_TYPE")
+        type_id2 = _get_reference_type_id("TEST_TYPE")
+        assert type_id1 == type_id2, "Should return same ID for same type"
+        
+        print("All validation tests passed!")
+        
+    finally:
+        # Cleanup
+        if 'test_step' in locals():
+            steps.delete(test_step.id)
+        if 'test_checklist' in locals():
+            checklists.delete(test_checklist.id)
 
-if __name__ == '__main__':
-    serve()
+# Run the tests
+test_validation_functions()
+
+# I've moved the above code 
+
+
+def create_checklist(title, description, description_long=None):
+    """Create a new checklist
+    Args:
+        title: str - Title of the checklist
+        description: str - Short description
+        description_long: str, optional - Detailed description
+    Returns:
+        Checklist object for chaining
+    """
+    if not title or not description:
+        raise ValueError("Title and description are required")
+    
+    return checklists.insert(
+        title=title,
+        description=description,
+        description_long=description_long
+    )
 
 

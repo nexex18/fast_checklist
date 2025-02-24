@@ -268,11 +268,8 @@ app, rt, (checklists, _), (steps, _), (checklist_instances, _), (instance_steps,
 Step = steps.dataclass()
 Checklist = checklists.dataclass()
 StepReference = step_references.dataclass()
-Instance = checklist_instances.dataclass()
 
 create_triggers()
-
-# Initialize reference_types
 
 def add_reference_type(name, description):
     name = name.upper()
@@ -284,34 +281,3 @@ def add_reference_type(name, description):
 
 add_reference_type(name='URL', description='URL')
 add_reference_type(name='API', description='API endpoint')
-
-# Basic home page
-
-@rt('/')
-def get(req):
-    return Container(
-        # Header section
-        DivFullySpaced(
-            H1("Checklist Manager", cls="uk-heading-medium"),
-            P("Welcome to your checklist management system", 
-              cls=TextPresets.muted_sm)  # Using muted_sm instead of muted
-        ),
-        
-        # Main content card
-        Card(
-            DivCentered(
-                H2("Getting Started", cls="uk-heading-small"),
-                P("Your checklists and instances will appear here.", 
-                  cls=TextPresets.muted_sm),  # Changed from muted to muted_sm
-                Button("Create First Checklist", 
-                      cls=ButtonT.primary)
-            )
-        ),
-        
-        cls="uk-margin-large-top"
-    )
-
-if __name__ == '__main__':
-    serve()
-
-
