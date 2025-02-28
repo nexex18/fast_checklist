@@ -10,14 +10,13 @@ from time import sleep
 from fastcore.basics import AttrDict, patch
 from fastcore.test import test_eq
 
-# Added to enable helper functions 
-import pendulum
-from enum import Enum
-from typing import Optional
+# Only import the specific functions/classes you need
+from core_functions import create_checklist
+from core_functions import Checklist, Step, StepReference, Instance
 
-from bleach import clean
-from markdown import markdown
-from fastcore.transform import Transform
+# Rest of your file remains the same
+
+
 
 # CLI Arguments
 parser = argparse.ArgumentParser()
@@ -298,29 +297,65 @@ add_reference_type(name='API', description='API endpoint')
 
 @rt('/')
 def get(req):
-    return Container(
-        # Header section
-        DivFullySpaced(
-            H1("Checklist Manager", cls="uk-heading-medium"),
-            P("Welcome to your checklist management system", 
-              cls=TextPresets.muted_sm)  # Using muted_sm instead of muted
-        ),
+    # Create or get sample data
+    data = create_sample_data()
+    
+    # Get a sample checklist
+    checklist = checklists()[0]
+    
+    # Get steps for the checklist
+    checklist_steps = [s for s in steps() if s.checklist_id == checklist.id]
+    
+    # Get instances for the checklist
+    checklist_instances_list = [i for i in checklist_instances() if i.checklist_id == checklist.id][:2]
+    
+    # Add get_progress method to instances for testing
+    def get_progress(self):
+        if self.status == 'Not Started':
+            return {'percentage': 0}
+        elif self.status == 'In Progress':
+            return {'percentage': 50}
+        else:
+            return {'percentage': 100}
+    
+    for instance in checklist_instances_list:
+        instance.get_progress = lambda self=instance: get_progress(self)
+    
+    # Function to get references for a step
+    def get_refs(step_id):
+        return [ref for ref in step_references() if ref.step_id == step_id]
+    
+    # Get reference types
+    ref_types = reference_types()
+    
+    # Use the render function to create the complete page
+    return render_checklist_edit_page(checklist, checklist_steps, checklist_instances_list, ref_types, get_refs)
+
+
+
+# @rt('/')
+# def get(req):
+#     return Container(
+#         # Header section
+#         DivFullySpaced(
+#             H1("Checklist Manager", cls="uk-heading-medium"),
+#             P("Welcome to your checklist management system", 
+#               cls=TextPresets.muted_sm)  # Using muted_sm instead of muted
+#         ),
         
-        # Main content card
-        Card(
-            DivCentered(
-                H2("Getting Started", cls="uk-heading-small"),
-                P("Your checklists and instances will appear here.", 
-                  cls=TextPresets.muted_sm),  # Changed from muted to muted_sm
-                Button("Create First Checklist", 
-                      cls=ButtonT.primary)
-            )
-        ),
+#         # Main content card
+#         Card(
+#             DivCentered(
+#                 H2("Getting Started", cls="uk-heading-small"),
+#                 P("Your checklists and instances will appear here.", 
+#                   cls=TextPresets.muted_sm),  # Changed from muted to muted_sm
+#                 Button("Create First Checklist", 
+#                       cls=ButtonT.primary)
+#             )
+#         ),
         
-        cls="uk-margin-large-top"
-    )
+#         cls="uk-margin-large-top"
+#     )
 
 if __name__ == '__main__':
     serve()
-
-

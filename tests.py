@@ -2,6 +2,9 @@ from httpx import get as xget, post as xpost
 import os
 from fasthtml.common import *
 from fasthtml.common import RedirectResponse as redirect
+from fastcore.test import test_eq
+import pendulum
+import bleach
 from monsterui.all import *
 from datetime import datetime
 import argparse
@@ -9,13 +12,7 @@ import sqlite3
 from time import sleep
 from fastcore.basics import AttrDict, patch
 from core_functions import *
-from Internal_functions import (
-    _validate_checklist_exists,
-    _validate_step_exists,
-    _get_reference_type_id,
-    _get_next_order_index,
-    _reorder_steps
-)
+
 from main import (
     checklists, 
     steps, 
@@ -28,6 +25,8 @@ from main import (
     StepReference, 
     Instance
 )
+
+from render_functions import *
 
 def test_validation_functions():
     # Test checklist validation
@@ -1443,6 +1442,285 @@ def test_verify_instance_state():
             print(f"Cleanup failed: {e}")
 
 
+from render_functions import *
+
+
+
+
+def test_navbar():
+    data = create_sample_data()
+    show(render_navbar())
+    data = clean_test_data()
+    return "Navbar test completed"
+
+def test_page_title():
+    data = create_sample_data()
+    show(render_page_title("Edit Checklist", "Make changes to your checklist"))
+    show(render_page_title("View Checklist"))
+    data = clean_test_data()
+    return "Page title test completed"
+
+def test_action_button():
+    # Create a test with different button styles
+    primary_btn = render_action_button("Save Changes", "save")
+    default_btn = render_action_button("Cancel", "x", "uk-button-default")
+    danger_btn = render_action_button("Delete", "trash-2", "uk-button-danger")
+    
+    # Display each button
+    print("Testing individual buttons:")
+    show(primary_btn)
+    show(default_btn)
+    show(danger_btn)
+    
+    return "Button test completed"
+
+def test_checklist_header_view():
+    data = create_sample_data()
+    # Get a sample checklist
+    checklist = checklists()[0]
+    show(render_checklist_header_view(checklist))
+    data = clean_test_data()
+    return "Checklist header view test completed"
+
+def test_checklist_header_edit():
+    data = create_sample_data()
+    # Get a sample checklist
+    checklist = checklists()[0]
+    show(render_checklist_header_edit(checklist))
+    data = clean_test_data()
+    return "Checklist header edit test completed"
+
+def test_steps_header():
+    data = create_sample_data()
+    # Get a sample checklist
+    checklist = checklists()[0]
+    header = render_steps_header(checklist.id)
+    show(header)
+    data = clean_test_data()
+    return "Steps header test completed"
+
+def test_reference_item():
+    data = create_sample_data()
+    
+    # Get sample references of different types
+    url_ref = next((ref for ref in step_references() if 
+                   ref.reference_type_id == 1), step_references()[0])
+    
+    text_ref = next((ref for ref in step_references() if 
+                    ref.reference_type_id == 6), step_references()[0])
+    
+    # Test URL reference (with auto-detected type)
+    print("Testing URL reference:")
+    show(render_reference_item(url_ref))
+    
+    # Test text reference (with auto-detected type)
+    print("Testing TEXT reference:")
+    show(render_reference_item(text_ref))
+    
+    # Test with explicitly provided type
+    print("Testing with explicit type:")
+    show(render_reference_item(url_ref, "Documentation"))
+    
+    data = clean_test_data()
+    return "Reference item test completed"
+
+def test_step_item():
+    data = create_sample_data()
+    # Get a sample step
+    step = steps()[0]
+    # Get references for the step
+    step_refs = [ref for ref in step_references() if ref.step_id == step.id]
+    
+    # First, test without references
+    # show(render_step_item(step))
+    
+    # Then test with references
+    show(render_step_item(step, step_refs))
+    
+    # Test with non-sortable option
+    # show(render_step_item(step, step_refs, is_sortable=False))
+    
+    data = clean_test_data()
+    return "Step item test completed"
+
+def test_step_item_edit():
+    data = create_sample_data()
+    # Get a sample step
+    step = steps()[0]
+    show(render_step_item_edit(step))
+    data = clean_test_data()
+    return "Step item edit test completed"
+
+def test_new_step_form():
+    data = create_sample_data()
+    # Get a sample checklist
+    checklist = checklists()[0]
+    show(render_new_step_form(checklist.id))
+    data = clean_test_data()
+    return "New step form test completed"
+
+def test_steps_list():
+    data = create_sample_data()
+    # Get steps for a checklist
+    checklist = checklists()[0]
+    checklist_steps = [s for s in steps() if s.checklist_id == checklist.id]
+    
+    # Create a function to get references for a step
+    def get_refs(step_id):
+        return [ref for ref in step_references() if ref.step_id == step_id]
+    
+    # Test with steps and references
+    show(render_steps_list(checklist_steps, checklist.id, get_refs))
+    
+    # Test with empty steps list
+    show(render_steps_list([], checklist.id))
+    
+    data = clean_test_data()
+    return "Steps list test completed"
+
+def test_reference_type_badge():
+    data = create_sample_data()
+    
+    # Test unselected badge
+    show(render_reference_type_badge("Documentation", False, "#select-doc"))
+    
+    # Test selected badge
+    show(render_reference_type_badge("API", True, "#select-api"))
+    
+    # Test badge with no click handler
+    show(render_reference_type_badge("Guide"))
+    
+    data = clean_test_data()
+    return "Reference type badge test completed"
+
+def test_new_reference_form():
+    data = create_sample_data()
+    
+    # Get a sample step
+    step = steps()[0]
+    
+    # Get all reference types
+    ref_types = reference_types()
+    
+    # Test with actual reference types
+    show(render_new_reference_form(step.id, ref_types))
+    
+    # Test with empty reference types list
+    show(render_new_reference_form(step.id, []))
+    
+    # Create a custom reference type list for testing specific scenarios
+    custom_types = [
+        type('ReferenceType', (), {'id': 1, 'name': 'Documentation'}),
+        type('ReferenceType', (), {'id': 2, 'name': 'API'}),
+        type('ReferenceType', (), {'id': 3, 'name': 'Other Type'})
+    ]
+    
+    # Test with custom reference types
+    show(render_new_reference_form(step.id, custom_types))
+    
+    data = clean_test_data()
+    return "New reference form test completed"
+
+def test_instances_header():
+    data = create_sample_data()
+    # Get a sample checklist
+    checklist = checklists()[0]
+    show(render_instances_header(checklist.id))
+    data = clean_test_data()
+    return "Instances header test completed"
+
+def test_instance_item():
+    data = create_sample_data()
+    
+    # Get sample instances with different statuses
+    instance_not_started = [i for i in checklist_instances() if i.status == 'Not Started'][0]
+    instance_in_progress = [i for i in checklist_instances() if i.status == 'In Progress'][0]
+    
+    # Add a get_progress method to the instance for testing
+    def get_progress(self):
+        if self.status == 'Not Started':
+            return {'percentage': 0, 'completed': 0, 'total': 3}
+        elif self.status == 'In Progress':
+            return {'percentage': 50, 'completed': 1, 'total': 2}
+        else:
+            return {'percentage': 100, 'completed': 3, 'total': 3}
+    
+    instance_not_started.get_progress = lambda: get_progress(instance_not_started)
+    instance_in_progress.get_progress = lambda: get_progress(instance_in_progress)
+    
+    # Test with different instances
+    show(render_instance_item(instance_not_started))
+    show(render_instance_item(instance_in_progress))
+    
+    data = clean_test_data()
+    return "Instance item test completed"
+
+def test_instances_list():
+    data = create_sample_data()
+    
+    # Get instances for a specific checklist
+    checklist = checklists()[0]
+    checklist_instances_list = [i for i in checklist_instances() if i.checklist_id == checklist.id]
+    
+    # Add get_progress method to instances for testing
+    def get_progress(self):
+        if self.status == 'Not Started':
+            return {'percentage': 0}
+        elif self.status == 'In Progress':
+            return {'percentage': 50}
+        else:
+            return {'percentage': 100}
+    
+    for instance in checklist_instances_list:
+        instance.get_progress = lambda self=instance: get_progress(self)
+    
+    # Test with instances
+    show(render_instances_list(checklist_instances_list[:2]))
+    
+    # Test with empty list
+    show(render_instances_list([]))
+    
+    data = clean_test_data()
+    return "Instances list test completed"
+
+def test_checklist_edit_page():
+    data = create_sample_data()
+    
+    # Get a checklist
+    checklist = checklists()[0]
+    
+    # Get steps for the checklist
+    checklist_steps = [s for s in steps() if s.checklist_id == checklist.id]
+    
+    # Get instances for the checklist
+    checklist_instances_list = [i for i in checklist_instances() if i.checklist_id == checklist.id][:2]
+    
+    # Add get_progress method to instances for testing
+    def get_progress(self):
+        if self.status == 'Not Started':
+            return {'percentage': 0}
+        elif self.status == 'In Progress':
+            return {'percentage': 50}
+        else:
+            return {'percentage': 100}
+    
+    for instance in checklist_instances_list:
+        instance.get_progress = lambda self=instance: get_progress(self)
+    
+    # Function to get references for a step
+    def get_refs(step_id):
+        return [ref for ref in step_references() if ref.step_id == step_id]
+    
+    # Get reference types
+    ref_types = reference_types()
+    
+    # Render the complete page
+    show(render_checklist_edit_page(checklist, checklist_steps, checklist_instances_list, ref_types, get_refs))
+    
+    data = clean_test_data()
+    return "Checklist edit page test completed"
+
+
 
 # Run the tests
 
@@ -1537,17 +1815,84 @@ print("test_sanitize_input ran... going to run test_validate_dates now")
 test_validate_dates()
 print("test_validate_dates ran... going to run test_view_mode_toggle now")
 
-test_view_mode_toggle()
-print("test_view_mode_toggle ran... going to run test_search_checklists now")
-
 test_search_checklists()
 print("test_search_checklists ran... going to run test_search_instances now")
-
-test_search_instances()
-print("test_search_instances ran... going to run test_active_instances_summary now")
 
 test_active_instances_summary()
 print("test_active_instances_summary ran... going to run test_verify_instance_state now")
 
 test_verify_instance_state()
-print("test_verify_instance_state ran... All tests completed successfully!")
+print("test_verify_instance_state ran... !")
+
+print("### ########### ########### ########## ####")
+print("### Going to test view mode toggle now ####")
+
+# test_search_instances()
+# print("test_search_instances ran... going to run test_active_instances_summary now")
+
+# test_view_mode_toggle()
+# print("test_view_mode_toggle ran... ")
+
+
+print("\n======= Render Tests =======\n")
+print("\n======= Render Tests =======\n")
+print("\n======= Render Tests =======\n")
+
+from test_functions import *
+
+# Run all tests in sequence
+def run_all_tests():
+    print("\n======= Running All Tests =======\n")
+    
+    print("\n--- Testing Navbar ---")
+    test_navbar()
+    
+    print("\n--- Testing Page Title ---")
+    test_page_title()
+    
+    print("\n--- Testing Action Button ---")
+    test_action_button()
+    
+    print("\n--- Testing Checklist Header View ---")
+    test_checklist_header_view()
+    
+    print("\n--- Testing Checklist Header Edit ---")
+    test_checklist_header_edit()
+    
+    print("\n--- Testing Steps Header ---")
+    test_steps_header()
+    
+    print("\n--- Testing Reference Item ---")
+    test_reference_item()
+    
+    print("\n--- Testing Step Item ---")
+    test_step_item()
+    
+    print("\n--- Testing Step Item Edit ---")
+    test_step_item_edit()
+    
+    print("\n--- Testing New Step Form ---")
+    test_new_step_form()
+    
+    print("\n--- Testing Steps List ---")
+    test_steps_list()
+    
+    print("\n--- Testing Reference Type Badge ---")
+    test_reference_type_badge()
+    
+    print("\n--- Testing New Reference Form ---")
+    test_new_reference_form()
+    
+    print("\n--- Testing Instances Header ---")
+    test_instances_header()
+    
+    print("\n--- Testing Instance Item ---")
+    test_instance_item()
+    
+    print("\n--- Testing Instances List ---")
+    test_instances_list()
+    
+    print("\n--- Testing Complete Checklist Edit Page ---")
+    test_checklist_edit_page()
+    
+    print("\n======= All Tests Completed =======\n")
