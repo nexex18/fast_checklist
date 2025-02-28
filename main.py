@@ -1,22 +1,27 @@
-from httpx import get as xget, post as xpost
+# Standard library imports
 import os
-from fasthtml.common import *
-from fasthtml.common import RedirectResponse as redirect
-from monsterui.all import *
-from datetime import datetime
 import argparse
 import sqlite3
-from time import sleep
-from fastcore.basics import AttrDict, patch
-from fastcore.test import test_eq
+from pathlib import Path
+from datetime import datetime
 
-# Only import the specific functions/classes you need
-from core_functions import create_checklist
-from core_functions import Checklist, Step, StepReference, Instance
+# FastHTML and related imports
+from fasthtml.common import (
+    fast_app, 
+    database, 
+    Path, 
+    SortableJS
+)
+from monsterui.all import Theme
 
-# Rest of your file remains the same
+# Import render function
+# from render_functions import render_checklist_edit_page
 
-
+# Import core functions for sample data creation
+from core_functions import (
+    create_sample_data, 
+    add_reference_type
+)
 
 # CLI Arguments
 parser = argparse.ArgumentParser()
@@ -327,6 +332,9 @@ def get(req):
     
     # Get reference types
     ref_types = reference_types()
+
+     # LAZY IMPORT of render function
+    from render_functions import render_checklist_edit_page
     
     # Use the render function to create the complete page
     return render_checklist_edit_page(checklist, checklist_steps, checklist_instances_list, ref_types, get_refs)

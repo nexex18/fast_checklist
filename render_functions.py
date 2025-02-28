@@ -1,24 +1,52 @@
-from httpx import get as xget, post as xpost
+# Standard library imports
 import os
-from fasthtml.common import *
-from fasthtml.common import RedirectResponse as redirect
-from monsterui.all import *
 from datetime import datetime
+from urllib.parse import urlparse
+
+# Third-party library imports
 import sqlite3
-from time import sleep
-from fastcore.basics import AttrDict, patch
 
-# Import from main or core_functions only what you absolutely need
-from main import checklists, steps, reference_types, step_references, checklist_instances, instance_steps
-from core_functions import create_checklist, Checklist, Step, StepReference, Instance
+# FastHTML and related imports
+from fasthtml.common import (
+    Div, H3, P, Form, H4, Button, Hidden, Container, 
+    Section, H2, A, Script, Option
+)
+from fasthtml.components import Div as FHDiv
 
-# Rest of your file remains the same
+# MonsterUI imports
+from monsterui.all import (
+    Button as MonsterButton, 
+    UkIcon, 
+    DivLAligned, 
+    Card, 
+    DivVStacked, 
+    DivRAligned, 
+    TextPresets, 
+    DivFullySpaced, 
+    ButtonT, 
+    NavBar, 
+    ContainerT,
+    TextT,
+    Label
+)
 
-# Import Button directly from monsterui.all
-from monsterui.all import (Button as MonsterButton, UkIcon, DivLAligned, Card, DivVStacked, 
-                           DivRAligned, TextPresets, DivFullySpaced, ButtonT, NavBar, ContainerT)
-from fasthtml.components import (Div, H3, P, Form, H4, Button, Hidden, Container, Section, 
-                                H2, A, Script, Option)
+# Core functions and models
+from main import (
+    checklists, 
+    steps, 
+    reference_types, 
+    step_references, 
+    checklist_instances, 
+    instance_steps
+)
+from core_functions import (
+    create_checklist, 
+    Checklist, 
+    Step, 
+    StepReference, 
+    Instance,
+    format_instance_url
+)
 
 def render_navbar():
     """Main navigation bar for the application"""

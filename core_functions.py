@@ -1,29 +1,36 @@
-from httpx import get as xget, post as xpost
-import os
-from fasthtml.common import *
-from fasthtml.common import RedirectResponse as redirect
-from fastcore.test import test_eq
+# Standard library imports
+import re
+from datetime import datetime
+from enum import Enum
+from urllib.parse import urlparse
+
+# Third-party library imports
 import pendulum
 import bleach
-from monsterui.all import *
-from datetime import datetime
-import argparse
-import sqlite3
-from time import sleep
-from fastcore.basics import AttrDict, patch
 
+# FastHTML and related imports
+from fasthtml.common import (
+    database, 
+    patch
+)
+from fastcore.basics import AttrDict
+from fastcore.test import test_eq
+
+# Database and model imports (from main)
 from main import (
     checklists, 
     steps, 
     reference_types,
     step_references,
     checklist_instances,
-    instance_steps,
-    Step, 
-    Checklist, 
-    StepReference, 
-    Instance
+    instance_steps
 )
+
+# Optional imports if needed
+import sqlite3
+import os
+
+# Rest of your file remains the same
 
 def create_checklist(title, description, description_long=None):
     """Create a new checklist
