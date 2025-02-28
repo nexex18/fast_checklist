@@ -9,28 +9,18 @@ import pendulum
 import bleach
 
 # FastHTML and related imports
-from fasthtml.common import (
-    database, 
-    patch
-)
+from fasthtml.common import  *
+from fasthtml.common import RedirectResponse as redirect
 from fastcore.basics import AttrDict
 from fastcore.test import test_eq
 
-# Database and model imports (from main)
-from main import (
-    checklists, 
-    steps, 
-    reference_types,
-    step_references,
-    checklist_instances,
-    instance_steps
-)
+# Database and model imports
+from main import *
 
-# Optional imports if needed
-import sqlite3
-import os
-
-# Rest of your file remains the same
+# Configuration and database imports
+from config import DB_PATH
+from db_connection import DBConnection
+from routes import *
 
 def create_checklist(title, description, description_long=None):
     """Create a new checklist
@@ -225,7 +215,6 @@ def delete_checklist(checklist_id):
     # Delete the checklist
     checklists.delete(checklist_id)
     return True
-
 
 class ChecklistBuilder:
     def __init__(self, checklist, current_step=None):
@@ -443,7 +432,6 @@ def get_progress(self:Instance):
         'total_steps': total
     }
 
-
 # Define instance status values based on progress
 INSTANCE_STATUSES = {
     'Not Started': 0,    # No steps started
@@ -546,7 +534,6 @@ def get_instances_by_status(status, checklist_id=None):
         order_by="created_at DESC"
     )
 
-
 def format_instance_url(name: str, guid: str) -> str:
     """
     Format a URL-safe instance path from a name and GUID
@@ -599,7 +586,6 @@ def format_timestamp(ts, fmt:TimeFormat=TimeFormat.short, tz:str='UTC') -> str:
     # Different year
     return ts.format('MMM D, YYYY')
 
-
 class ProgressFormat(Enum):
     number = 'number'      # "50"
     percent = 'percent'    # "50%"
@@ -621,8 +607,6 @@ def format_progress_percentage(completed:int, total:int, fmt:ProgressFormat=Prog
     
     if fmt == ProgressFormat.bar: return bar
     return f"{bar} {pct}%"
-
-
 
 @patch
 def get_checklist_with_stats(self:Checklist):
@@ -646,7 +630,6 @@ def get_checklist_with_stats(self:Checklist):
             'last_modified': self.last_modified
         }
     }
-
 
 @patch
 def get_instance_with_details(self:Instance):
@@ -676,7 +659,6 @@ def get_instance_with_details(self:Instance):
         'steps': steps_data
     }
 
-
 def _clean_md(s:str):
     "Clean string while preserving markdown"
     return bleach.clean(s, strip=True, 
@@ -697,7 +679,6 @@ def sanitize_user_input(x):
     if isinstance(x, dict): return {k:sanitize_user_input(v) for k,v in x.items()}
     return x
 
-
 def validate_instance_dates(target_date=None, tz='UTC', max_days=365):
     "Validate instance dates are within acceptable ranges"
     if target_date is None: return (True, None)
@@ -717,8 +698,6 @@ def validate_instance_dates(target_date=None, tz='UTC', max_days=365):
         return (False, f"Target date cannot be more than {max_days} days in future")
         
     return (True, None)
-
-
 
 def handle_view_mode_toggle(current_mode:str, data:dict, unsaved:bool=False):
     "Toggle between view/edit modes with state handling"
@@ -743,9 +722,6 @@ def handle_view_mode_toggle(current_mode:str, data:dict, unsaved:bool=False):
             Form(data) if new_mode == 'edit' 
             else Container(data))
 
-
-
-
 def _rank_results(matches:L, query:str) -> L:
     "Rank results based on match quality"
     def _score(c):
@@ -754,7 +730,6 @@ def _rank_results(matches:L, query:str) -> L:
         return (2 if title_match else 0) + (1 if desc_match else 0)
     
     return matches.sorted(key=_score, reverse=True)
-
 
 def search_checklists(query:str, tags:list=None, limit:int=10) -> L:
     "Search checklists by query and optional tags"
@@ -775,8 +750,6 @@ def search_checklists(query:str, tags:list=None, limit:int=10) -> L:
     
     return _rank_results(matches, query)[:limit]
 
-
-
 def _calc_instance_progress(instance_id):
     "Calculate completion percentage for an instance"
     steps = L(instance_steps(where=f"checklist_instance_id = {instance_id}"))
@@ -784,7 +757,6 @@ def _calc_instance_progress(instance_id):
     completed = len(steps.filter(lambda s: s.status == 'Completed'))
     progress = completed / len(steps)
     return progress
-
 
 def search_instances(query:str, status=None, date_from=None, date_to=None, 
                     sort_by='created_at', limit=10) -> L:
@@ -815,8 +787,6 @@ def search_instances(query:str, status=None, date_from=None, date_to=None,
         _calc_instance_progress(i.id) if sort_by == 'progress' 
         else getattr(i, sort_by)
     ), reverse=True)[:limit]
-
-
 
 def get_active_instances_summary(days_due=7):
     "Get summary of active instances for dashboard"
@@ -863,8 +833,6 @@ def get_active_instances_summary(days_due=7):
         'completion_rate': avg_completion
     }
 
-
-
 def verify_instance_state(instance_id=None, fix=False):
     "Verify and optionally fix instance data consistency"
     report = {'missing_steps': [], 'invalid_status': [], 
@@ -905,11 +873,7 @@ def verify_instance_state(instance_id=None, fix=False):
     
     return report
 
-
-
 # INTERNAL FUNCTIONS BELOW
-
-
 
 def create_sample_data():
     "Create sample checklists, steps and instances for testing"
@@ -1066,7 +1030,6 @@ def clean_test_data():
     print(f"Cleaned {len(checklist_ids)} checklists")
     return []
 
-
 def _validate_checklist_exists(checklist_id):
     """Validate checklist exists and return it, or raise ValueError"""
     if not isinstance(checklist_id, int) or checklist_id < 1:
@@ -1096,7 +1059,6 @@ def _get_reference_type_id(type_name):
         name=type_name,
         description=f"Auto-created reference type: {type_name}"
     ).id
-
 
 def _get_next_order_index(checklist_id):
     """Get next available order_index for a checklist's steps
@@ -1139,9 +1101,6 @@ def _reorder_steps(checklist_id, new_index, current_index=None):
         )
         for step in affected:
             steps.update({'order_index': step.order_index + 1}, step.id)
-
-
-
 
 
 

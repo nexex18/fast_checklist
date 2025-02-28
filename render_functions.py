@@ -6,7 +6,13 @@ from urllib.parse import urlparse
 # Third-party library imports
 import sqlite3
 
-# FastHTML and related imports
+# Configuration imports
+from config import DB_PATH
+from db_connection import DBConnection
+from routes import *
+
+# FastHTML imports
+from fasthtml.common import *
 from fasthtml.common import (
     Div, H3, P, Form, H4, Button, Hidden, Container, 
     Section, H2, A, Script, Option
@@ -30,7 +36,7 @@ from monsterui.all import (
     Label
 )
 
-# Core functions and models
+# Database and model imports
 from main import (
     checklists, 
     steps, 
@@ -39,14 +45,9 @@ from main import (
     checklist_instances, 
     instance_steps
 )
-from core_functions import (
-    create_checklist, 
-    Checklist, 
-    Step, 
-    StepReference, 
-    Instance,
-    format_instance_url
-)
+
+# Core functions and models
+from core_functions import *
 
 def render_navbar():
     """Main navigation bar for the application"""

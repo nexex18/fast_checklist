@@ -1,0 +1,2 @@
+2025-02-27 22:05:48,820 - main - INFO - Database triggers created successfully.
+2025-02-27 22:05:48,820 - main - ERROR - Error initializing reference types: name 'add_reference_type' is not defined

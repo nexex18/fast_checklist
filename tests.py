@@ -1,32 +1,127 @@
-from httpx import get as xget, post as xpost
+# Standard library imports
 import os
-from fasthtml.common import *
-from fasthtml.common import RedirectResponse as redirect
-from fastcore.test import test_eq
+import re
+from datetime import datetime
+import sqlite3
+import uuid
+
+# Third-party library imports
 import pendulum
 import bleach
-from monsterui.all import *
-from datetime import datetime
-import argparse
-import sqlite3
-from time import sleep
-from fastcore.basics import AttrDict, patch
-from core_functions import *
+from fastcore.test import test_eq
+from fastcore.basics import L, AttrDict
 
+# Configuration imports
+from config import (
+    DB_PATH, 
+    DBConnection, 
+    TABLE_CONFIG, 
+    APP_SETTINGS,
+    LOGGER
+)
+
+# FastHTML and related imports
+from fasthtml.common import (
+    database,
+    patch
+)
+
+# Database and model imports from main
 from main import (
     checklists, 
     steps, 
     reference_types,
     step_references,
     checklist_instances,
-    instance_steps,
-    Step, 
-    Checklist, 
-    StepReference, 
-    Instance
+    instance_steps
 )
 
-from render_functions import *
+# Core functions and models
+from core_functions import (
+    # Checklist Functions
+    create_checklist,
+    
+    # Checklist Methods
+    Checklist.update,
+    Checklist.add_step,
+    Checklist.build,
+    Checklist.get_checklist_with_stats,
+    
+    # Step Methods
+    Step.update,
+    Step.delete,
+    Step.add_reference,
+    Step.delete_reference,
+    Step.get_references,
+    
+    # Instance Methods
+    Instance.update,
+    Instance.update_step_status,
+    Instance.add_step_note,
+    Instance.get_step_status,
+    Instance.get_progress,
+    Instance.update_status,
+    Instance.get_incomplete_steps,
+    Instance.get_instance_with_details,
+    
+    # Instance-related Functions
+    create_instance,
+    delete_instance,
+    get_active_instances,
+    get_instances_by_status,
+    
+    # Utility Functions
+    format_instance_url,
+    format_timestamp,
+    format_progress_percentage,
+    sanitize_user_input,
+    validate_instance_dates,
+    handle_view_mode_toggle,
+    search_checklists,
+    search_instances,
+    get_active_instances_summary,
+    verify_instance_state,
+    
+    # Internal Helper Functions
+    _validate_checklist_exists,
+    _validate_step_exists,
+    _get_reference_type_id,
+    _get_next_order_index,
+    _reorder_steps,
+    _clean_md,
+    
+    # Classes and Other Useful Items
+    ChecklistBuilder,
+    ProgressFormat,
+    TimeFormat
+)
+
+# Render functions for testing render logic
+from render_functions import (
+    render_navbar,
+    render_page_title,
+    render_action_button,
+    render_checklist_header_view,
+    render_checklist_header_edit,
+    render_steps_header,
+    render_reference_item,
+    render_step_item,
+    render_step_item_edit,
+    render_new_step_form,
+    render_steps_list,
+    render_reference_type_badge,
+    render_new_reference_form,
+    render_instances_header,
+    render_instance_item,
+    render_instances_list,
+    render_checklist_edit_page
+)
+
+# Utility functions for testing
+from internal_functions import (
+    create_sample_data,
+    clean_test_data
+)
 
 def test_validation_functions():
     # Test checklist validation

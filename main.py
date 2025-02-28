@@ -10,39 +10,36 @@ from fasthtml.common import (
     fast_app, 
     database, 
     Path, 
-    SortableJS
+    SortableJS, 
+    Container,
+    P
 )
+
+from monsterui.all import *
+
 from monsterui.all import Theme
-
-# Import render function
-# from render_functions import render_checklist_edit_page
-
-# Import core functions for sample data creation
-from core_functions import (
-    create_sample_data, 
-    add_reference_type
-)
 
 # CLI Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-refresh', action='store_true', help='Refresh the database on startup')
 args = parser.parse_args()
 
+from db_connection import DB_PATH, DBConnection
 
-DB_PATH = Path('data/checklists.db')
+# DB_PATH = Path('data/checklists.db')
 
-class DBConnection:
-    def __init__(self, db_path=DB_PATH):
-        self.db_path = db_path
+# class DBConnection:
+#     def __init__(self, db_path=DB_PATH):
+#         self.db_path = db_path
         
-    def __enter__(self):
-        self.conn = sqlite3.connect(self.db_path)
-        self.conn.row_factory = sqlite3.Row
-        return self.conn.cursor()
+#     def __enter__(self):
+#         self.conn = sqlite3.connect(self.db_path)
+#         self.conn.row_factory = sqlite3.Row
+#         return self.conn.cursor()
         
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.conn.commit()
-        self.conn.close()
+#     def __exit__(self, exc_type, exc_val, exc_tb):
+#         self.conn.commit()
+#         self.conn.close()
         
 def create_triggers():
     with DBConnection() as cur:
@@ -299,71 +296,29 @@ add_reference_type(name='URL', description='URL')
 add_reference_type(name='API', description='API endpoint')
 
 # Basic home page
-
 @rt('/')
 def get(req):
-    # Create or get sample data
-    data = create_sample_data()
-    
-    # Get a sample checklist
-    checklist = checklists()[0]
-    
-    # Get steps for the checklist
-    checklist_steps = [s for s in steps() if s.checklist_id == checklist.id]
-    
-    # Get instances for the checklist
-    checklist_instances_list = [i for i in checklist_instances() if i.checklist_id == checklist.id][:2]
-    
-    # Add get_progress method to instances for testing
-    def get_progress(self):
-        if self.status == 'Not Started':
-            return {'percentage': 0}
-        elif self.status == 'In Progress':
-            return {'percentage': 50}
-        else:
-            return {'percentage': 100}
-    
-    for instance in checklist_instances_list:
-        instance.get_progress = lambda self=instance: get_progress(self)
-    
-    # Function to get references for a step
-    def get_refs(step_id):
-        return [ref for ref in step_references() if ref.step_id == step_id]
-    
-    # Get reference types
-    ref_types = reference_types()
-
-     # LAZY IMPORT of render function
-    from render_functions import render_checklist_edit_page
-    
-    # Use the render function to create the complete page
-    return render_checklist_edit_page(checklist, checklist_steps, checklist_instances_list, ref_types, get_refs)
-
-
-
-# @rt('/')
-# def get(req):
-#     return Container(
-#         # Header section
-#         DivFullySpaced(
-#             H1("Checklist Manager", cls="uk-heading-medium"),
-#             P("Welcome to your checklist management system", 
-#               cls=TextPresets.muted_sm)  # Using muted_sm instead of muted
-#         ),
+    return Container(
+        # Header section
+        DivFullySpaced(
+            H1("Checklist Manager", cls="uk-heading-medium"),
+            P("Welcome to your checklist management system", 
+              cls=TextPresets.muted_sm)  # Using muted_sm instead of muted
+        ),
         
-#         # Main content card
-#         Card(
-#             DivCentered(
-#                 H2("Getting Started", cls="uk-heading-small"),
-#                 P("Your checklists and instances will appear here.", 
-#                   cls=TextPresets.muted_sm),  # Changed from muted to muted_sm
-#                 Button("Create First Checklist", 
-#                       cls=ButtonT.primary)
-#             )
-#         ),
+        # Main content card
+        Card(
+            DivCentered(
+                H2("Getting Started", cls="uk-heading-small"),
+                P("Your checklists and instances will appear here.", 
+                  cls=TextPresets.muted_sm),  # Changed from muted to muted_sm
+                Button("Create First Checklist", 
+                      cls=ButtonT.primary)
+            )
+        ),
         
-#         cls="uk-margin-large-top"
-#     )
+        cls="uk-margin-large-top"
+    )
 
 if __name__ == '__main__':
     serve()
