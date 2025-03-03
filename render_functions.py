@@ -7,8 +7,7 @@ from urllib.parse import urlparse
 import sqlite3
 
 # Configuration imports
-from config import DB_PATH
-from db_connection import DBConnection
+from db_connection import DB_PATH, DBConnection
 from routes import *
 
 # FastHTML imports

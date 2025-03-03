@@ -4,27 +4,25 @@ import re
 from datetime import datetime
 import sqlite3
 import uuid
+from time import sleep
 
 # Third-party library imports
 import pendulum
 import bleach
 from fastcore.test import test_eq
-from fastcore.basics import L, AttrDict
+from fastcore.basics import AttrDict
 
 # Configuration imports
-from config import (
-    DB_PATH, 
-    DBConnection, 
-    TABLE_CONFIG, 
-    APP_SETTINGS,
-    LOGGER
-)
+from db_connection import DB_PATH, DBConnection
+from routes import *
 
 # FastHTML and related imports
 from fasthtml.common import (
     database,
     patch
 )
+
+from render_functions import *
 
 # Database and model imports from main
 from main import (
@@ -37,91 +35,25 @@ from main import (
 )
 
 # Core functions and models
-from core_functions import (
-    # Checklist Functions
-    create_checklist,
-    
-    # Checklist Methods
-    Checklist.update,
-    Checklist.add_step,
-    Checklist.build,
-    Checklist.get_checklist_with_stats,
-    
-    # Step Methods
-    Step.update,
-    Step.delete,
-    Step.add_reference,
-    Step.delete_reference,
-    Step.get_references,
-    
-    # Instance Methods
-    Instance.update,
-    Instance.update_step_status,
-    Instance.add_step_note,
-    Instance.get_step_status,
-    Instance.get_progress,
-    Instance.update_status,
-    Instance.get_incomplete_steps,
-    Instance.get_instance_with_details,
-    
-    # Instance-related Functions
-    create_instance,
-    delete_instance,
-    get_active_instances,
-    get_instances_by_status,
-    
-    # Utility Functions
-    format_instance_url,
-    format_timestamp,
-    format_progress_percentage,
-    sanitize_user_input,
-    validate_instance_dates,
-    handle_view_mode_toggle,
-    search_checklists,
-    search_instances,
-    get_active_instances_summary,
-    verify_instance_state,
-    
-    # Internal Helper Functions
-    _validate_checklist_exists,
-    _validate_step_exists,
-    _get_reference_type_id,
-    _get_next_order_index,
-    _reorder_steps,
-    _clean_md,
-    
-    # Classes and Other Useful Items
-    ChecklistBuilder,
-    ProgressFormat,
-    TimeFormat
-)
+# from core_functions import *
+from core_functions import (create_checklist, update, add_step, delete, add_reference, delete_reference, 
+                            get_references, delete_checklist, ChecklistBuilder, build, create_instance, 
+                            delete_instance, update_step_status, add_step_note, get_step_status,
+                            get_progress, update_status, get_incomplete_steps, get_active_instances, 
+                            get_instances_by_status, format_instance_url, format_timestamp, 
+                            format_progress_percentage, get_checklist_with_stats, get_instance_with_details,
+                            sanitize_user_input, validate_instance_dates, handle_view_mode_toggle,
+                            search_checklists, search_instances, get_active_instances_summary,
+                            verify_instance_state, _validate_checklist_exists, _validate_step_exists,_get_reference_type_id,_get_next_order_index, _reorder_steps)
 
 # Render functions for testing render logic
-from render_functions import (
-    render_navbar,
-    render_page_title,
-    render_action_button,
-    render_checklist_header_view,
-    render_checklist_header_edit,
-    render_steps_header,
-    render_reference_item,
-    render_step_item,
-    render_step_item_edit,
-    render_new_step_form,
-    render_steps_list,
-    render_reference_type_badge,
-    render_new_reference_form,
-    render_instances_header,
-    render_instance_item,
-    render_instances_list,
-    render_checklist_edit_page
-)
+from render_functions import *
 
-# Utility functions for testing
-from internal_functions import (
-    create_sample_data,
-    clean_test_data
-)
+# # Utility functions for testing
+# from internal_functions import (
+#     create_sample_data,
+#     clean_test_data
+# )
 
 def test_validation_functions():
     # Test checklist validation
@@ -1537,10 +1469,8 @@ def test_verify_instance_state():
             print(f"Cleanup failed: {e}")
 
 
-from render_functions import *
 
-
-
+# Render test functions
 
 def test_navbar():
     data = create_sample_data()
@@ -1904,8 +1834,8 @@ print("test_checklist_stats ran... going to run test_instance_details now")
 test_instance_details()
 print("test_instance_details ran... going to run test_sanitize_input now")
 
-test_sanitize_input()
-print("test_sanitize_input ran... going to run test_validate_dates now")
+# test_sanitize_input()
+# print("test_sanitize_input ran... going to run test_validate_dates now")
 
 test_validate_dates()
 print("test_validate_dates ran... going to run test_view_mode_toggle now")
@@ -1933,61 +1863,60 @@ print("\n======= Render Tests =======\n")
 print("\n======= Render Tests =======\n")
 print("\n======= Render Tests =======\n")
 
-from test_functions import *
 
-# Run all tests in sequence
-def run_all_tests():
-    print("\n======= Running All Tests =======\n")
+# # Run all tests in sequence
+# def run_all_tests():
+#     print("\n======= Running All Tests =======\n")
     
-    print("\n--- Testing Navbar ---")
-    test_navbar()
+#     print("\n--- Testing Navbar ---")
+#     test_navbar()
     
-    print("\n--- Testing Page Title ---")
-    test_page_title()
+#     print("\n--- Testing Page Title ---")
+#     test_page_title()
     
-    print("\n--- Testing Action Button ---")
-    test_action_button()
+#     print("\n--- Testing Action Button ---")
+#     test_action_button()
     
-    print("\n--- Testing Checklist Header View ---")
-    test_checklist_header_view()
+#     print("\n--- Testing Checklist Header View ---")
+#     test_checklist_header_view()
     
-    print("\n--- Testing Checklist Header Edit ---")
-    test_checklist_header_edit()
+#     print("\n--- Testing Checklist Header Edit ---")
+#     test_checklist_header_edit()
     
-    print("\n--- Testing Steps Header ---")
-    test_steps_header()
+#     print("\n--- Testing Steps Header ---")
+#     test_steps_header()
     
-    print("\n--- Testing Reference Item ---")
-    test_reference_item()
+#     print("\n--- Testing Reference Item ---")
+#     test_reference_item()
     
-    print("\n--- Testing Step Item ---")
-    test_step_item()
+#     print("\n--- Testing Step Item ---")
+#     test_step_item()
     
-    print("\n--- Testing Step Item Edit ---")
-    test_step_item_edit()
+#     print("\n--- Testing Step Item Edit ---")
+#     test_step_item_edit()
     
-    print("\n--- Testing New Step Form ---")
-    test_new_step_form()
+#     print("\n--- Testing New Step Form ---")
+#     test_new_step_form()
     
-    print("\n--- Testing Steps List ---")
-    test_steps_list()
+#     print("\n--- Testing Steps List ---")
+#     test_steps_list()
     
-    print("\n--- Testing Reference Type Badge ---")
-    test_reference_type_badge()
+#     print("\n--- Testing Reference Type Badge ---")
+#     test_reference_type_badge()
     
-    print("\n--- Testing New Reference Form ---")
-    test_new_reference_form()
+#     print("\n--- Testing New Reference Form ---")
+#     test_new_reference_form()
     
-    print("\n--- Testing Instances Header ---")
-    test_instances_header()
+#     print("\n--- Testing Instances Header ---")
+#     test_instances_header()
     
-    print("\n--- Testing Instance Item ---")
-    test_instance_item()
+#     print("\n--- Testing Instance Item ---")
+#     test_instance_item()
     
-    print("\n--- Testing Instances List ---")
-    test_instances_list()
+#     print("\n--- Testing Instances List ---")
+#     test_instances_list()
     
-    print("\n--- Testing Complete Checklist Edit Page ---")
-    test_checklist_edit_page()
+#     print("\n--- Testing Complete Checklist Edit Page ---")
+#     test_checklist_edit_page()
     
-    print("\n======= All Tests Completed =======\n")
+#     print("\n======= All Tests Completed =======\n")

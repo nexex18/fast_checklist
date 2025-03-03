@@ -12,12 +12,15 @@ from fasthtml.common import (
     Path, 
     SortableJS, 
     Container,
-    P
+    P,
+    A
 )
 
 from monsterui.all import *
 
 from monsterui.all import Theme
+
+from routes import *
 
 # CLI Arguments
 parser = argparse.ArgumentParser()
@@ -302,18 +305,16 @@ def get(req):
         # Header section
         DivFullySpaced(
             H1("Checklist Manager", cls="uk-heading-medium"),
-            P("Welcome to your checklist management system", 
-              cls=TextPresets.muted_sm)  # Using muted_sm instead of muted
+            P("Welcome to your checklist management system", cls=TextPresets.muted_sm)
         ),
         
         # Main content card
         Card(
             DivCentered(
                 H2("Getting Started", cls="uk-heading-small"),
-                P("Your checklists and instances will appear here.", 
-                  cls=TextPresets.muted_sm),  # Changed from muted to muted_sm
-                Button("Create First Checklist", 
-                      cls=ButtonT.primary)
+                P("Your checklists and instances will appear here.", cls=TextPresets.muted_sm),
+                # Simple link to edit page for first checklist
+                A("Edit First Checklist", href="/edit/1", cls="uk-button uk-button-primary uk-margin-small-top")
             )
         ),
         
