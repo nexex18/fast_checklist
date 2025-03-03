@@ -135,8 +135,7 @@ def create_triggers():
             END;
         """)
 
-# Database Setup
-os.makedirs('data', exist_ok=True)
+
 
 def clean_db():
     if DB_PATH.exists():
@@ -149,7 +148,13 @@ def clean_db():
             if path.exists(): path.unlink()
 
 # Always clean for debugging
-clean_db()
+# clean_db()
+
+# Database Setup
+print("Check if data directory Exists ")
+os.makedirs('data', exist_ok=True)
+
+print("Check if made it this far ")
 
 if args.refresh and DB_PATH.exists():
     print("Refreshing database...")
